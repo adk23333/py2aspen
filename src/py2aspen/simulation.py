@@ -27,6 +27,7 @@ from comtypes import COMError
 from py2aspen.aspen_type import IHNode, PortType
 
 BlockInputT = TypeVar("BlockInputT", bound="BlockInput")
+StreamInputT = TypeVar("StreamInputT", bound="StreamInput")
 
 
 @dataclass
@@ -37,6 +38,17 @@ class BlockInput:
     supports.  Each field carries its Aspen node name as the ``"alias"``
     metadata; a ``"spec_opt"`` metadata means ``SPEC_OPT`` must be written to
     that value before the parameter itself.
+    """
+
+
+@dataclass
+class StreamInput:
+    """Base class for stream input parameter dataclasses.
+
+    Each subclass (e.g. :class:`MaterialStreamInput`) declares the parameters
+    its stream supports.  Each field carries its Aspen node name as the
+    ``"alias"`` metadata, and an optional ``"sub"`` metadata names a child
+    node (e.g. ``MIXED``).
     """
 
 @dataclass
@@ -427,11 +439,12 @@ class RYield(Block[RYieldInput]):
         self._set_input(inputs)
 
 
-class Stream(ABC):
+class Stream(Generic[StreamInputT], ABC):
     """Base class for material, heat, or work streams.
 
-    Subclasses must implement :meth:`type`.  The ``name`` is optional and
-    defaults to the uppercased variable the object is assigned to.
+    Subclasses must implement :meth:`type` and :meth:`set_input`.  The
+    ``name`` is optional and defaults to the uppercased variable the object
+    is assigned to.
     """
 
     def __init__(self, name: str | None = None) -> None:
@@ -442,30 +455,126 @@ class Stream(ABC):
     def type(self) -> str:
         """Return the Aspen Plus stream type string."""
 
+    @abstractmethod
+    def set_input(self, inputs: StreamInputT) -> None:
+        """Apply *inputs* to this stream; subclasses document supported fields."""
 
-class MaterialStream(Stream):
+    def get_input(self) -> StreamInputT:
+        """Read this stream's current Input parameters into a :class:`StreamInput`."""
+        node = self._node
+        assert node is not None, "stream node not injected; call flowsheet.place/bind first"
+        input_cls = cast(type[StreamInputT], get_type_hints(type(self).set_input)["inputs"])
+        values: dict[str, object] = {}
+        for f in fields(input_cls):
+            param_node = node.Elements("Input").Elements(f.metadata["alias"])
+            if "sub" in f.metadata:
+                if param_node is None:
+                    values[f.name] = None
+                    continue
+                param_node = param_node.Elements(f.metadata["sub"])
+            if param_node is None:
+                values[f.name] = None
+                continue
+            try:
+                values[f.name] = param_node.Value()
+            except COMError:
+                values[f.name] = None
+        return input_cls(**values)
+
+    def _set_input(self, inputs: StreamInputT) -> None:
+        """Write every non-``None`` field of *inputs* to this stream.
+
+        Each field's ``"alias"`` metadata names the ``Input`` node, and an
+        optional ``"sub"`` metadata names a child node (e.g. ``MIXED``).
+        ``Value`` is an indexed property (PROPERTYPUT cParams=2), so each
+        parameter must be written via ``__setitem__`` (see properties.py).
+        """
+        node = self._node
+        assert node is not None, "stream node not injected; call flowsheet.place/bind first"
+
+        def write(param: str, sub: str | None, value: object) -> None:
+            param_node = node.Elements("Input").Elements(param)
+            if sub is not None:
+                param_node = param_node.Elements(sub)
+            cast(Any, param_node.Value)[0] = value
+
+        for f in fields(inputs):
+            value = getattr(inputs, f.name)
+            if value is None:
+                continue
+            meta = f.metadata
+            write(meta["alias"], meta.get("sub"), value)
+
+
+@dataclass
+class MaterialStreamInput(StreamInput):
+    """Inputs for :class:`MaterialStream`."""
+
+    flash_type_option: str | None = field(default=None, metadata={"alias": "MIXED_SPEC", "sub": "MIXED"})
+    temperature: float | None = field(default=None, metadata={"alias": "TEMP", "sub": "MIXED"})
+    pressure: float | None = field(default=None, metadata={"alias": "PRES", "sub": "MIXED"})
+    vapor_fraction: float | None = field(default=None, metadata={"alias": "VFRAC", "sub": "MIXED"})
+    total_flow: float | None = field(default=None, metadata={"alias": "TOTFLOW"})
+    component_flow: float | None = field(default=None, metadata={"alias": "FLOW", "sub": "MIXED"})
+
+
+class MaterialStream(Stream[MaterialStreamInput]):
     """Material stream."""
 
     def type(self) -> str:
         return "MATERIAL"
 
+    def set_input(self, inputs: MaterialStreamInput) -> None:
+        """Apply MaterialStream inputs from a :class:`MaterialStreamInput`.
 
-class HeatStream(Stream):
+        Supported fields: ``flash_type_option``, ``temperature``, ``pressure``,
+        ``vapor_fraction``, ``total_flow``, ``component_flow``.
+        """
+        self._set_input(inputs)
+
+
+class HeatStream(Stream[StreamInput]):
     """Heat stream."""
 
     def type(self) -> str:
         return "HEAT"
 
+    def set_input(self, inputs: StreamInput) -> None:
+        """HeatStream has no configurable inputs."""
+        raise NotImplementedError("HeatStream has no inputs to set")
 
-class WorkStream(Stream):
+    def get_input(self) -> StreamInput:
+        """HeatStream has no configurable inputs."""
+        raise NotImplementedError("HeatStream has no inputs to get")
+
+
+
+class WorkStream(Stream[StreamInput]):
     """Work stream (empty Aspen type string)."""
 
     def type(self) -> str:
         return "WORK"
 
+    def set_input(self, inputs: StreamInput) -> None:
+        """WorkStream has no configurable inputs."""
+        raise NotImplementedError("WorkStream has no inputs to set")
 
-class PowerStream(Stream):
+    def get_input(self) -> StreamInput:
+        """WorkStream has no configurable inputs."""
+        raise NotImplementedError("WorkStream has no inputs to get")
+
+
+
+class PowerStream(Stream[StreamInput]):
     """power stream."""
 
     def type(self) -> str:
         return "POWER"
+
+    def set_input(self, inputs: StreamInput) -> None:
+        """PowerStream has no configurable inputs."""
+        raise NotImplementedError("PowerStream has no inputs to set")
+
+    def get_input(self) -> StreamInput:
+        """PowerStream has no configurable inputs."""
+        raise NotImplementedError("PowerStream has no inputs to get")
