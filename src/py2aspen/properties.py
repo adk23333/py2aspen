@@ -130,6 +130,24 @@ class PropertiesManager:
             components.append(comp)
         return components
 
+    def set_component(self, comp: str, index: int | None = None, comp_type="ANAME") -> None:
+        """Add a new component to Aspen Plus.
+
+        Writes *comp* as the row label at *index* (defaults to the end of
+        the table) of the given *comp_type* collection.  Aspen then fills
+        the other collections (e.g. ``ANAME``/``DBNAME``/``CASN``) from its
+        databank.
+        """
+        elements = self.components_node.Elements(comp_type).Elements
+        if index is None:
+            index = len(list(elements))
+        elements.Label[0, index] = comp
+
+        # The component list is a 2-D table, so ``Add()`` does not work here;
+        # the first ``Label`` argument (row dimension) has no second row --
+        # only ``0`` is valid -- so ``Label`` is effectively a 1-D list
+        # implemented within a 2-D table.
+
     @property
     def base_method(self) -> BaseMethodType | None:
         """Global base property method (``GBASEOPSET``)."""
