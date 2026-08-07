@@ -2,13 +2,16 @@
 
 No real Aspen Plus instance is required: the component node tree is mocked by
 the ``Mock*`` classes, which mirror the minimal ``IHNode`` / ``IHNodeCol``
-surface used by ``ComponentManager`` (``Elements(name)`` / ``Elements`` /
+surface used by ``PropertiesManager`` (``Elements(name)`` / ``Elements`` /
 ``Name()`` / ``Value()``).
 """
 
 from __future__ import annotations
 
-from py2aspen.properties import ComponentManager
+from typing import cast
+
+from py2aspen.aspen_type import IHNode
+from py2aspen.properties import PropertiesManager
 
 
 class MockComponent:
@@ -81,8 +84,19 @@ class MockComponentsNode:
         return self._spec
 
 
-def _make_components_node() -> MockComponentsNode:
-    """Build a mocked Data\\Components tree matching the real V14 collections."""
+class MockDataNode:
+    """Mock of ``Data``: ``Elements("Components")`` -> ``MockComponentsNode``."""
+
+    def __init__(self, components_node: MockComponentsNode) -> None:
+        self._components = components_node
+
+    def Elements(self, name: str) -> MockComponentsNode:
+        assert name == "Components"
+        return self._components
+
+
+def _make_data_node() -> IHNode:
+    """Build a mocked Data tree matching the real V14 collections."""
     input_node = MockInputNode(
         {
             "ANAME": {"H2O": "H2O", "N2": "N2", "O2": "O2", "COAL": None},
@@ -91,13 +105,13 @@ def _make_components_node() -> MockComponentsNode:
             "CASN": {"H2O": "7732-18-5", "N2": "7727-37-9", "O2": "7782-44-7", "COAL": None},
         }
     )
-    return MockComponentsNode(input_node)
+    return cast(IHNode, MockDataNode(MockComponentsNode(input_node)))
 
-# --- ComponentManager ---
+# --- PropertiesManager ---
 
 
 def test_get_all_components_default_fetches_all() -> None:
-    mgr = ComponentManager(_make_components_node())
+    mgr = PropertiesManager(_make_data_node())
     comps = mgr.get_all_components()
 
     assert [c.id for c in comps] == ["H2O", "N2", "O2", "COAL"]
@@ -109,7 +123,7 @@ def test_get_all_components_default_fetches_all() -> None:
 
 
 def test_get_all_components_missing_value_is_none() -> None:
-    mgr = ComponentManager(_make_components_node())
+    mgr = PropertiesManager(_make_data_node())
     comps = mgr.get_all_components()
 
     coal = comps[3]
@@ -121,7 +135,7 @@ def test_get_all_components_missing_value_is_none() -> None:
 
 
 def test_get_all_components_selective_flags() -> None:
-    mgr = ComponentManager(_make_components_node())
+    mgr = PropertiesManager(_make_data_node())
     comps = mgr.get_all_components(type=False, cas=False)
 
     water = comps[0]

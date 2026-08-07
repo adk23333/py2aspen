@@ -10,7 +10,7 @@ from comtypes.GUID import GUID
 from py2aspen.aspen_type import APP, IHNode
 from py2aspen.flowsheet import Action
 from py2aspen.log import logger
-from py2aspen.properties import ComponentManager
+from py2aspen.properties import PropertiesManager
 
 
 class AspenVersionCode(StrEnum):
@@ -38,7 +38,7 @@ class UnitAspen(object):
         self.machine = machine
         self.app: APP = client.CreateObject(progid, machine=machine)
         self.current_file: Path | None = None
-        self._components: ComponentManager | None = None
+        self._properties: PropertiesManager | None = None
         logger.success("Connected to Aspen Plus on machine {} with progid {}", self.machine, self.progid)
 
     def _set_current_file(self, path: str | Path) -> None:
@@ -206,12 +206,12 @@ class UnitAspen(object):
         action._execute()
         logger.success("Executed action with {} operation(s)", len(action._operations))
 
-    def components(self) -> ComponentManager:
-        """Return a :class:`ComponentManager` bound to the current components node."""
-        if self._components is None:
-            components_node: IHNode = self.app.Tree.Elements("Data").Elements("Components")
-            self._components = ComponentManager(components_node)
-        return self._components
+    def properties(self) -> PropertiesManager:
+        """Return a :class:`PropertiesManager` bound to the current data node."""
+        if self._properties is None:
+            data_node: IHNode = self.app.Tree.Elements("Data")
+            self._properties = PropertiesManager(data_node)
+        return self._properties
 
 
 if __name__ == "__main__":

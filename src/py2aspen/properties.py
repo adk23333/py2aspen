@@ -1,4 +1,4 @@
-"""Component data models and management for Aspen Plus.
+"""Property data models and management for Aspen Plus.
 
 Reads the per-component parameter collections under
 ``\\Data\\Components\\Specifications\\Input`` (``ANAME`` / ``TYPE`` / ``DBNAME`` /
@@ -9,7 +9,7 @@ Note: the collection names above were verified against Aspen Plus V14
 (``solid1.bkp``).  There is no ``NAME``/``ALIAS`` collection (those names were
 used by older versions); the mappings are ``id`` = element ``Name()``,
 ``type`` = ``TYPE`` (e.g. ``CONV``/``NC``), ``name`` = ``DBNAME`` (databank
-name), ``alias`` = ``ANAME``, ``cas`` = ``CASN``.  A component may exist in a
+name), ``alias`` = ``ANAME``, ``cas`` = ``CASN``.  A property may exist in a
 collection yet have no value (e.g. ``COAL``): its ``Value()`` returns ``None``
 rather than raising, so ``None`` is preserved and never stringified to
 ``"None"``.
@@ -44,17 +44,17 @@ class Component:
     cas: str | None = None
 
 
-class ComponentManager:
-    """Manages the components under an Aspen Plus components node.
+class PropertiesManager:
+    """Manages the properties under an Aspen Plus Data node.
 
     The node passed to :meth:`__init__` should be
-    ``app.Tree.Elements("Data").Elements("Components")``; the manager then
-    descends to the ``Specifications\\Input`` collections ``ANAME``/``TYPE``/
+    ``app.Tree.Elements("Data")``; the manager then descends to the
+    ``Components\\Specifications\\Input`` collections ``ANAME``/``TYPE``/
     ``DBNAME``/``CASN``.
     """
 
-    def __init__(self, components_node: IHNode) -> None:
-        self._node = components_node.Elements("Specifications").Elements("Input")
+    def __init__(self, data_node: IHNode) -> None:
+        self._node = data_node.Elements("Components").Elements("Specifications").Elements("Input")
 
     def _value(self, collection: str, comp_id: str) -> str | None:
         """Return the value of *collection* for *comp_id*, or ``None`` if absent."""
