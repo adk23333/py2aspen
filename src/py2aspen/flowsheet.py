@@ -115,10 +115,11 @@ class Action:
             if op_name == "place":
                 item = args[0]
                 if isinstance(item, Block):
-                    bn.Elements.Add(f"{item.name}!{item.type()}")
+                    node = bn.Elements.Add(f"{item.name}!{item.type()}")
+                    item._node = node  # bind the block node for property setters
                     logger.info("Placed block {} (type {})", item.name, item.type())
                 else:
-                    sn.Elements.Add(f"{item.name}!{item.type()}")
+                    node = sn.Elements.Add(f"{item.name}!{item.type()}")
                     logger.info("Placed stream {} (type {})", item.name, item.type())
             elif op_name == "delete":
                 item = args[0]
