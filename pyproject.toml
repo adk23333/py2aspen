@@ -1,8 +1,9 @@
 [project]
 name = "py2aspen"
 version = "0.1.0"
-description = "Add your description here"
+description = "A Python wrapper for Aspen Plus built on comtypes."
 readme = "README.md"
+authors = [{ name = "SanLiy" }]
 license = { text = "BSD-3-Clause" }
 requires-python = ">=3.12"
 dependencies = [
