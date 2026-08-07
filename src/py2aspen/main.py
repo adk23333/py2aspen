@@ -38,6 +38,7 @@ class UnitAspen(object):
         self.machine = machine
         self.app: APP = client.CreateObject(progid, machine=machine)
         self.current_file: Path | None = None
+        self._components: ComponentManager | None = None
         logger.success("Connected to Aspen Plus on machine {} with progid {}", self.machine, self.progid)
 
     def _set_current_file(self, path: str | Path) -> None:
@@ -207,8 +208,10 @@ class UnitAspen(object):
 
     def components(self) -> ComponentManager:
         """Return a :class:`ComponentManager` bound to the current components node."""
-        components_node: IHNode = self.app.Tree.Elements("Data").Elements("Components")
-        return ComponentManager(components_node)
+        if self._components is None:
+            components_node: IHNode = self.app.Tree.Elements("Data").Elements("Components")
+            self._components = ComponentManager(components_node)
+        return self._components
 
 
 if __name__ == "__main__":
