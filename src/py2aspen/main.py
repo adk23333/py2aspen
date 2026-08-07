@@ -7,9 +7,10 @@ from comtypes import CoClass, client
 from comtypes.automation import IDispatch
 from comtypes.GUID import GUID
 
-from py2aspen.aspen_type import APP
+from py2aspen.aspen_type import APP, IHNode
 from py2aspen.flowsheet import Action
 from py2aspen.log import logger
+from py2aspen.properties import ComponentManager
 
 
 class AspenVersionCode(StrEnum):
@@ -200,6 +201,11 @@ class UnitAspen(object):
         action._inject_nodes(blocks_node, streams_node)
         action._execute()
         logger.success("Executed action with {} operation(s)", len(action._operations))
+
+    def components(self) -> ComponentManager:
+        """Return a :class:`ComponentManager` bound to the current components node."""
+        components_node: IHNode = self.app.Tree.Elements("Data").Elements("Components")
+        return ComponentManager(components_node)
 
 
 if __name__ == "__main__":
