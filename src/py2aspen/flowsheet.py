@@ -3,8 +3,8 @@
 References BlockPlace / BlockDelete / StreamPlace / StreamDelete /
 StreamConnect / StreamDisconnect in CodeLibrary.py.
 
-Blocks and streams are defined in :mod:`py2aspen.simulate` (e.g.
-:class:`py2aspen.simulate.Radfrac`, :class:`py2aspen.simulate.MaterialStream`).
+Blocks and streams are defined in :mod:`py2aspen.simulation` (e.g.
+:class:`py2aspen.simulation.Radfrac`, :class:`py2aspen.simulation.MaterialStream`).
 
 The operations are exposed in two forms:
 
@@ -28,7 +28,7 @@ from typing import Callable, cast
 
 from py2aspen.aspen_type import IHNode, PortType
 from py2aspen.log import logger
-from py2aspen.simulate import Block, Stream
+from py2aspen.simulation import Block, Stream
 
 
 def place(*items: Block | Stream) -> Action:

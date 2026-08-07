@@ -1,6 +1,6 @@
 """Aspen Plus shared type definitions.
 
-Used by main (UnitAspen), simulate (Block / Stream) and flowsheet (Action).
+Used by main (UnitAspen), simulation (Block / Stream) and flowsheet (Action).
 Values reference CodeLibrary.py.
 """
 

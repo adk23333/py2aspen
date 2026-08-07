@@ -1,4 +1,4 @@
-"""Tests for py2aspen.flowsheet and py2aspen.simulate.
+"""Tests for py2aspen.flowsheet and py2aspen.simulation.
 
 No real Aspen Plus instance is required: the COM node tree is mocked by the
 ``ElementsNode`` class, which mirrors the minimal ``IHNode`` surface used by
@@ -19,7 +19,7 @@ from py2aspen.flowsheet import (
     disconnect,
     place,
 )
-from py2aspen.simulate import (
+from py2aspen.simulation import (
     RCSTR,
     HeatStream,
     MaterialStream,
