@@ -37,12 +37,12 @@ class UnitAspen(object):
         self.progid = progid
         self.machine = machine
         self.app: APP = client.CreateObject(progid, machine=machine)
-        self.current_file: str | None = None
+        self.current_file: Path | None = None
         logger.success("Connected to Aspen Plus on machine {} with progid {}", self.machine, self.progid)
 
     def _set_current_file(self, path: str | Path) -> None:
         """Record the currently opened file's absolute path."""
-        self.current_file = str(Path(path).resolve())
+        self.current_file = Path(path).resolve()
         logger.info("Tracked current file: {}", self.current_file)
 
     def _clear_current_file(self) -> None:
@@ -95,19 +95,19 @@ class UnitAspen(object):
             path: Path to the backup file.
             **kwargs: Forwarded to ``InitFromArchive2``.
         """
-        self.app.InitFromArchive2(path, **kwargs)
         self._set_current_file(path)
-        logger.success("Opened Aspen Plus file: {}", path)
+        self.app.InitFromArchive2(str(self.current_file), **kwargs)
+        logger.success("Opened Aspen Plus file: {}", self.current_file)
 
     def open_apw(self, path: str | Path, **kwargs) -> None:
-        self.app.InitFromFile(path, **kwargs)
         self._set_current_file(path)
+        self.app.InitFromFile(str(self.current_file), **kwargs)
 
     def restore_bkp(self, path: str | Path) -> None:
         """Restore/merge an archive file into the current case."""
-        self.app.Restore2(path)
         self._set_current_file(path)
-        logger.success("Restored backup from: {}", path)
+        self.app.Restore2(str(self.current_file))
+        logger.success("Restored backup from: {}", self.current_file)
 
     def save(self) -> None:
         """Save the current file as an Aspen Plus document (``.apw``)."""
@@ -123,8 +123,9 @@ class UnitAspen(object):
             **kwargs: Additional keyword arguments forwarded to the COM
                 ``SaveAs`` method.
         """
-        self.app.SaveAs(path, overwrite, **kwargs)
-        logger.success("Saved current file as: {}", path)
+        self._set_current_file(path)
+        self.app.SaveAs(str(self.current_file), overwrite, **kwargs)
+        logger.success("Saved current file as: {}", self.current_file)
 
     def save_bkp(self, path: str | Path, save_children: bool = True) -> None:
         """Export the current file as an Aspen Plus backup archive (``.bkp``).
@@ -134,8 +135,9 @@ class UnitAspen(object):
             save_children: Whether to save child objects (``WriteArchive2``
                 ``savechildren`` argument).
         """
-        self.app.WriteArchive2(path, save_children)
-        logger.success("Saved backup archive to: {}", path)
+        self._set_current_file(path)
+        self.app.WriteArchive2(str(self.current_file), save_children)
+        logger.success("Saved backup archive to: {}", self.current_file)
 
     def export(self, path: str | Path, export_type: ExportType = ExportType.BACKUP) -> None:
         """Export an Aspen Plus file.
@@ -146,8 +148,9 @@ class UnitAspen(object):
             **kwargs: Additional keyword arguments forwarded to the COM
                 ``Export`` method.
         """
-        self.app.Export(export_type.value, path)
-        logger.success("Exported {} to: {}", export_type.name, path)
+        self._set_current_file(path)
+        self.app.Export(export_type.value, str(self.current_file))
+        logger.success("Exported {} to: {}", export_type.name, self.current_file)
 
     def set_visible(self, visible: bool):
         """Set the visibility of the Aspen Plus application window.
