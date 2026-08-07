@@ -148,6 +148,14 @@ class PropertiesManager:
         # only ``0`` is valid -- so ``Label`` is effectively a 1-D list
         # implemented within a 2-D table.
 
+    def remove_component(self, comp: str, comp_type="ANAME") -> None:
+        """Remove a component from Aspen Plus.
+
+        Removes the row labelled *comp* from the given *comp_type*
+        collection.
+        """
+        self.components_node.Elements(comp_type).Elements.Remove(comp)
+
     @property
     def base_method(self) -> BaseMethodType | None:
         """Global base property method (``GBASEOPSET``)."""
