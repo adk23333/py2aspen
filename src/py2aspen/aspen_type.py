@@ -4,7 +4,7 @@ Used by main (UnitAspen), simulation (Block / Stream) and flowsheet (Action).
 Values reference CodeLibrary.py.
 """
 
-from enum import IntEnum, StrEnum
+from enum import StrEnum
 from typing import TYPE_CHECKING
 
 from comtypes.client.lazybind import Dispatch
@@ -16,24 +16,6 @@ if TYPE_CHECKING:
     from comtypes.gen import Happ  # type: ignore[import-untyped]
     APP = Happ.IHapp  # IHapp from generated type library
     IHNode = Happ.IHNode  # more precise static type for tree nodes
-        
-
-
-class Phase(StrEnum):
-    """Phases: LIQUID, VAPOR, SOLID."""
-
-    LIQUID = "L"
-    VAPOR = "V"
-    SOLID = "S"
-
-
-class PhaseNumber(IntEnum):
-    """Number of phases: 1, 2, 3."""
-
-    ONE = 1
-    TWO = 2
-    THREE = 3
-
 
 class PortType(StrEnum):
     """Aspen Plus block port connection strings."""

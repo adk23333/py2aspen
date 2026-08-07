@@ -30,6 +30,37 @@ BlockInputT = TypeVar("BlockInputT", bound="BlockInput")
 StreamInputT = TypeVar("StreamInputT", bound="StreamInput")
 
 
+__all__ = [
+    "Block",
+    "Stream",
+    "RCSTR",
+    "RPlug",
+    "DSTWU",
+    "Flash2",
+    "Mixer",
+    "Heater",
+    "Radfrac",
+    "Splitter",
+    "RYield",
+    "MaterialStream",
+    "HeatStream",
+    "WorkStream",
+    "PowerStream",
+    "BlockInput",
+    "StreamInput",
+    "RCSTRInput",
+    "RPlugInput",
+    "DSTWUInput",
+    "Flash2Input",
+    "MixerInput",
+    "HeaterInput",
+    "RadfracInput",
+    "SplitterInput",
+    "RYieldInput",
+    "MaterialStreamInput",
+]
+
+
 @dataclass
 class BlockInput:
     """Base class for block input parameter dataclasses.
