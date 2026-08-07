@@ -436,6 +436,7 @@ class Stream(ABC):
 
     def __init__(self, name: str | None = None) -> None:
         self.name = _resolve_name(name)
+        self._node: IHNode | None = None  # injected by flowsheet.place/bind at exec time
 
     @abstractmethod
     def type(self) -> str:

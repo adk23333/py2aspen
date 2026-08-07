@@ -41,6 +41,15 @@ def delete(*items: Block | Stream) -> Action:
     return Action().delete(*items)
 
 
+def bind(*items: Block | Stream) -> Action:
+    """Return a new Action with bind operations as the first step.
+
+    Binds existing blocks/streams (already present in the Aspen file) by name,
+    without placing new ones.
+    """
+    return Action().bind(*items)
+
+
 def connect(stream: Stream, port: Callable[[], PortType]) -> Action:
     """Return a new Action with a connect operation as the first step.
 
@@ -86,6 +95,12 @@ class Action:
             self._operations.append(("delete", (item,)))
         return self
 
+    def bind(self, *items: Block | Stream) -> Action:
+        """Record bind operations for one or more existing items."""
+        for item in items:
+            self._operations.append(("bind", (item,)))
+        return self
+
     def connect(self, stream: Stream, port: Callable[[], PortType]) -> Action:
         """Record a connect operation.
 
@@ -112,7 +127,21 @@ class Action:
         bn = self._blocks_node
         sn = self._streams_node
         for op_name, args in self._operations:
-            if op_name == "place":
+            if op_name == "bind":
+                item = args[0]
+                if isinstance(item, Block):
+                    node = bn.Elements(item.name)
+                    if node is None:
+                        raise RuntimeError(f"Block {item.name} not found; cannot bind")
+                    item._node = node  # bind existing block node
+                    logger.info("Bound block {} (existing)", item.name)
+                else:
+                    node = sn.Elements(item.name)
+                    if node is None:
+                        raise RuntimeError(f"Stream {item.name} not found; cannot bind")
+                    item._node = node  # bind existing stream node
+                    logger.info("Bound stream {} (existing)", item.name)
+            elif op_name == "place":
                 item = args[0]
                 if isinstance(item, Block):
                     node = bn.Elements.Add(f"{item.name}!{item.type()}")
@@ -133,37 +162,27 @@ class Action:
                 block, stream, port = cast("tuple[Block, Stream, PortType]", args)
                 block_node = bn.Elements(block.name)
                 if block_node is None:
-                    logger.error(
-                        "Block {} not found; skipping connect of stream {}", block.name, stream.name
+                    raise RuntimeError(
+                        f"Block {block.name} not found; cannot connect stream {stream.name}"
                     )
-                    continue
                 port_node = block_node.Elements("Ports").Elements(port)
                 if port_node is None:
-                    logger.error(
-                        "Port {} not found on block {}; skipping connect of stream {}",
-                        port,
-                        block.name,
-                        stream.name,
+                    raise RuntimeError(
+                        f"Port {port} not found on block {block.name}; cannot connect stream {stream.name}"
                     )
-                    continue
                 port_node.Elements.Add(stream.name)
                 logger.info("Connected stream {} to block {} port {}", stream.name, block.name, port)
             elif op_name == "disconnect":
                 block, stream, port = cast("tuple[Block, Stream, PortType]", args)
                 block_node = bn.Elements(block.name)
                 if block_node is None:
-                    logger.error(
-                        "Block {} not found; skipping disconnect of stream {}", block.name, stream.name
+                    raise RuntimeError(
+                        f"Block {block.name} not found; cannot disconnect stream {stream.name}"
                     )
-                    continue
                 port_node = block_node.Elements("Ports").Elements(port)
                 if port_node is None:
-                    logger.error(
-                        "Port {} not found on block {}; skipping disconnect of stream {}",
-                        port,
-                        block.name,
-                        stream.name,
+                    raise RuntimeError(
+                        f"Port {port} not found on block {block.name}; cannot disconnect stream {stream.name}"
                     )
-                    continue
                 port_node.Elements.Remove(stream.name)
                 logger.info("Disconnected stream {} from block {} port {}", stream.name, block.name, port)
