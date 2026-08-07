@@ -3,11 +3,11 @@ name = "py2aspen"
 version = "0.1.0"
 description = "Add your description here"
 readme = "README.md"
+license = { text = "BSD-3-Clause" }
 requires-python = ">=3.12"
 dependencies = [
     "comtypes>=1.4",
     "loguru>=0.7.3",
-    "pywin32>=312",
 ]
 [build-system]
 requires = ["uv_build>=0.5"]
