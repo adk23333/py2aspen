@@ -206,6 +206,7 @@ class UnitAspen(object):
         action._execute()
         logger.success("Executed action with {} operation(s)", len(action._operations))
 
+    @property
     def properties(self) -> PropertiesManager:
         """Return a :class:`PropertiesManager` bound to the current data node."""
         if self._properties is None:
