@@ -10,6 +10,10 @@ dependencies = [
     "comtypes>=1.4",
     "loguru>=0.7.3",
 ]
+[project.urls]
+"Home page" = "https://github.com/adk23333/py2aspen"
+Repository = "https://github.com/adk23333/py2aspen.git"
+GitHub = "https://github.com/adk23333/py2aspen"
 [build-system]
 requires = ["uv_build>=0.5"]
 build-backend = "uv_build"
