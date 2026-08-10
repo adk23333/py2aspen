@@ -121,9 +121,10 @@ class Action:
 
     def _execute(self) -> None:
         """Execute all recorded operations using the injected node references."""
-        assert self._blocks_node is not None and self._streams_node is not None, (
-            "nodes must be injected via _inject_nodes before _execute"
-        )
+        if self._blocks_node is None or self._streams_node is None:
+            raise RuntimeError(
+                "nodes must be injected via _inject_nodes before _execute"
+            )
         bn = self._blocks_node
         sn = self._streams_node
         for op_name, args in self._operations:

@@ -266,7 +266,8 @@ class Block(Generic[BlockInputT], ABC):
     def get_input(self) -> BlockInputT:
         """Read this block's current Input parameters into a :class:`BlockInput`."""
         node = self._node
-        assert node is not None, "block node not injected; call flowsheet.place first"
+        if node is None:
+            raise RuntimeError("block node not injected; call flowsheet.place first")
         input_cls = cast(type[BlockInputT], get_type_hints(type(self).set_input)["inputs"])
         values: dict[str, object] = {}
         for f in fields(input_cls):
@@ -289,7 +290,8 @@ class Block(Generic[BlockInputT], ABC):
         must be written via ``__setitem__`` (see properties.py).
         """
         node = self._node
-        assert node is not None, "block node not injected; call flowsheet.place first"
+        if node is None:
+            raise RuntimeError("block node not injected; call flowsheet.place first")
 
         def write(param: str, value: object) -> None:
             param_node = node.Elements("Input").Elements(param)
@@ -493,7 +495,8 @@ class Stream(Generic[StreamInputT], ABC):
     def get_input(self) -> StreamInputT:
         """Read this stream's current Input parameters into a :class:`StreamInput`."""
         node = self._node
-        assert node is not None, "stream node not injected; call flowsheet.place/bind first"
+        if node is None:
+            raise RuntimeError("stream node not injected; call flowsheet.place/bind first")
         input_cls = cast(type[StreamInputT], get_type_hints(type(self).set_input)["inputs"])
         values: dict[str, object] = {}
         for f in fields(input_cls):
@@ -521,7 +524,8 @@ class Stream(Generic[StreamInputT], ABC):
         parameter must be written via ``__setitem__`` (see properties.py).
         """
         node = self._node
-        assert node is not None, "stream node not injected; call flowsheet.place/bind first"
+        if node is None:
+            raise RuntimeError("stream node not injected; call flowsheet.place/bind first")
 
         def write(param: str, sub: str | None, value: object) -> None:
             param_node = node.Elements("Input").Elements(param)
