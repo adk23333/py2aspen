@@ -23,7 +23,7 @@ from typing import Any, cast
 
 from comtypes import COMError
 
-from py2aspen.aspen_type import IHNode
+from py2aspen.aspen_type import HAPAttributeType, IHNode
 
 
 class BaseMethodType(StrEnum):
@@ -38,6 +38,7 @@ class BaseMethodType(StrEnum):
     IAPWS_95 = "IAPWS-95"
     IDEAL = "IDEAL"
     NRTL = "NRTL"
+    NRTL_RK = "NRTL-RK"
     NRTL_SAC = "NRTL-SAC"
     PC_SAFT = "PC-SAFT"
     PENG_ROB = "PENG-ROB"
@@ -95,7 +96,7 @@ class PropertiesManager:
         if node is None:
             return None
         try:
-            value = node.Value()
+            value = node.AttributeValue(HAPAttributeType.HAP_VALUE)
         except COMError:
             return None
         return str(value) if value is not None else None
@@ -163,7 +164,7 @@ class PropertiesManager:
         if node is None:
             return None
         try:
-            value = node.Value()
+            value = node.AttributeValue(HAPAttributeType.HAP_VALUE)
         except COMError:
             return None
         if value is None:
@@ -181,5 +182,5 @@ class PropertiesManager:
         refresh binary interaction parameters (BIPs).
         """
         node = self.properties_node.Elements("GBASEOPSET")
-        # Value 是带索引属性（PROPERTYPUT cParams=2），须经 __setitem__ 写入
-        cast(Any, node.Value)[0] = method.value
+        # AttributeValue 是带索引属性（PROPERTYPUT cParams=2），须经 __setitem__ 写入
+        cast(Any, node).AttributeValue[HAPAttributeType.HAP_VALUE, 0] = method.value

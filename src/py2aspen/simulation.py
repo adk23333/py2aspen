@@ -24,40 +24,40 @@ from typing import Any, Generic, TypeVar, cast, get_type_hints
 
 from comtypes import COMError
 
-from py2aspen.aspen_type import IHNode, PortType
+from py2aspen.aspen_type import FlashType, HAPAttributeType, IHNode, PortType
 
 BlockInputT = TypeVar("BlockInputT", bound="BlockInput")
 StreamInputT = TypeVar("StreamInputT", bound="StreamInput")
 
 
 __all__ = [
-    "Block",
-    "Stream",
-    "RCSTR",
-    "RPlug",
     "DSTWU",
-    "Flash2",
-    "Mixer",
-    "Heater",
-    "Radfrac",
-    "Splitter",
-    "RYield",
-    "MaterialStream",
-    "HeatStream",
-    "WorkStream",
-    "PowerStream",
+    "RCSTR",
+    "Block",
     "BlockInput",
-    "StreamInput",
-    "RCSTRInput",
-    "RPlugInput",
     "DSTWUInput",
+    "Flash2",
     "Flash2Input",
-    "MixerInput",
+    "HeatStream",
+    "Heater",
     "HeaterInput",
-    "RadfracInput",
-    "SplitterInput",
-    "RYieldInput",
+    "MaterialStream",
     "MaterialStreamInput",
+    "Mixer",
+    "MixerInput",
+    "PowerStream",
+    "RCSTRInput",
+    "RPlug",
+    "RPlugInput",
+    "RYield",
+    "RYieldInput",
+    "Radfrac",
+    "RadfracInput",
+    "Splitter",
+    "SplitterInput",
+    "Stream",
+    "StreamInput",
+    "WorkStream",
 ]
 
 
@@ -138,7 +138,7 @@ class DSTWUInput(BlockInput):
 class Flash2Input(BlockInput):
     """Inputs for :class:`Flash2`."""
 
-    flash_type_option: str | None = field(default=None, metadata={"alias": "SPEC_OPT"})
+    flash_type: FlashType | None = field(default=None, metadata={"alias": "SPEC_OPT"})
     temperature: float | None = field(default=None, metadata={"alias": "TEMP"})
     pressure: float | None = field(default=None, metadata={"alias": "PRES"})
     duty: float | None = field(default=None, metadata={"alias": "DUTY"})
@@ -167,7 +167,7 @@ class MixerInput(BlockInput):
 class HeaterInput(BlockInput):
     """Inputs for :class:`Heater`."""
 
-    flash_type_option: str | None = field(default=None, metadata={"alias": "SPEC_OPT"})
+    flash_type: FlashType | None = field(default=None, metadata={"alias": "SPEC_OPT"})
     temperature: float | None = field(default=None, metadata={"alias": "TEMP"})
     temperature_change: float | None = field(default=None, metadata={"alias": "DELT"})
     degrees_superheating: float | None = field(default=None, metadata={"alias": "DEGSUP"})
@@ -214,7 +214,7 @@ class SplitterInput(BlockInput):
 class RYieldInput(BlockInput):
     """Inputs for :class:`RYield`."""
 
-    flash_type_option: str | None = field(default=None, metadata={"alias": "SPEC_OPT"})
+    flash_type: FlashType | None = field(default=None, metadata={"alias": "SPEC_OPT"})
     temperature: float | None = field(default=None, metadata={"alias": "TEMP"})
     temperature_change: float | None = field(default=None, metadata={"alias": "DELT"})
     pressure: float | None = field(default=None, metadata={"alias": "PRES"})
@@ -276,7 +276,7 @@ class Block(Generic[BlockInputT], ABC):
                 values[f.name] = None
                 continue
             try:
-                values[f.name] = param_node.Value()
+                values[f.name] = param_node.AttributeValue(HAPAttributeType.HAP_VALUE)
             except COMError:
                 values[f.name] = None
         return input_cls(**values)
@@ -285,9 +285,9 @@ class Block(Generic[BlockInputT], ABC):
         """Write every non-``None`` field of *inputs* to this block.
 
         Each field's ``"alias"`` metadata names the ``Input`` node; a
-        ``"spec_opt"`` metadata is written to ``SPEC_OPT`` first.  ``Value``
-        is an indexed property (PROPERTYPUT cParams=2), so each parameter
-        must be written via ``__setitem__`` (see properties.py).
+        ``"spec_opt"`` metadata is written to ``SPEC_OPT`` first.  Values are
+        written via ``AttributeValue`` (an indexed property, PROPERTYPUT
+        cParams=2, see properties.py) on the ``HAP_VALUE`` attribute.
         """
         node = self._node
         if node is None:
@@ -295,7 +295,7 @@ class Block(Generic[BlockInputT], ABC):
 
         def write(param: str, value: object) -> None:
             param_node = node.Elements("Input").Elements(param)
-            cast(Any, param_node.Value)[0] = value
+            cast(Any, param_node).AttributeValue[HAPAttributeType.HAP_VALUE, 0] = value
 
         for f in fields(inputs):
             value = getattr(inputs, f.name)
@@ -500,17 +500,30 @@ class Stream(Generic[StreamInputT], ABC):
         input_cls = cast(type[StreamInputT], get_type_hints(type(self).set_input)["inputs"])
         values: dict[str, object] = {}
         for f in fields(input_cls):
-            param_node = node.Elements("Input").Elements(f.metadata["alias"])
-            if "sub" in f.metadata:
-                if param_node is None:
-                    values[f.name] = None
-                    continue
-                param_node = param_node.Elements(f.metadata["sub"])
+            meta = f.metadata
+            param_node = node.Elements("Input").Elements(meta["alias"])
             if param_node is None:
                 values[f.name] = None
                 continue
             try:
-                values[f.name] = param_node.Value()
+                if "basis" in meta:
+                    values[f.name] = param_node.AttributeValue(HAPAttributeType.HAP_BASIS)
+                elif "comps" in meta:
+                    comp_node = param_node.Elements(meta["sub"]) if "sub" in meta else param_node
+                    if comp_node is None:
+                        values[f.name] = None
+                        continue
+                    comp_values: dict[str, object] = {}
+                    for elem in comp_node.Elements:
+                        elem_node = cast(IHNode, elem)
+                        comp_values[str(elem_node.Name())] = elem_node.AttributeValue(HAPAttributeType.HAP_VALUE)
+                    values[f.name] = comp_values
+                else:
+                    param_node = param_node.Elements(meta["sub"]) if "sub" in meta else param_node
+                    if param_node is None:
+                        values[f.name] = None
+                        continue
+                    values[f.name] = param_node.AttributeValue(HAPAttributeType.HAP_VALUE)
             except COMError:
                 values[f.name] = None
         return input_cls(**values)
@@ -520,37 +533,53 @@ class Stream(Generic[StreamInputT], ABC):
 
         Each field's ``"alias"`` metadata names the ``Input`` node, and an
         optional ``"sub"`` metadata names a child node (e.g. ``MIXED``).
-        ``Value`` is an indexed property (PROPERTYPUT cParams=2), so each
-        parameter must be written via ``__setitem__`` (see properties.py).
+        Values are written via ``AttributeValue`` (an indexed property,
+        PROPERTYPUT cParams=2, see properties.py); a ``"basis"`` metadata
+        targets ``HAP_BASIS``, a ``"comps"`` metadata writes per-component
+        values, and everything else writes ``HAP_VALUE``.
         """
         node = self._node
         if node is None:
             raise RuntimeError("stream node not injected; call flowsheet.place/bind first")
 
-        def write(param: str, sub: str | None, value: object) -> None:
-            param_node = node.Elements("Input").Elements(param)
+        def param_node(param: str, sub: str | None):
+            pn = node.Elements("Input").Elements(param)
             if sub is not None:
-                param_node = param_node.Elements(sub)
-            cast(Any, param_node.Value)[0] = value
+                pn = pn.Elements(sub)
+            return pn
 
         for f in fields(inputs):
             value = getattr(inputs, f.name)
             if value is None:
                 continue
             meta = f.metadata
-            write(meta["alias"], meta.get("sub"), value)
+            if "basis" in meta:
+                cast(Any, node.Elements("Input").Elements(meta["alias"])).AttributeValue[
+                    HAPAttributeType.HAP_BASIS, 0
+                ] = value
+            elif "comps" in meta:
+                for comp, comp_value in cast(dict[str, object], value).items():
+                    cast(Any, param_node(meta["alias"], meta.get("sub")).Elements(comp)).AttributeValue[
+                        HAPAttributeType.HAP_VALUE, 0
+                    ] = comp_value
+            else:
+                cast(Any, param_node(meta["alias"], meta.get("sub"))).AttributeValue[
+                    HAPAttributeType.HAP_VALUE, 0
+                ] = value
 
 
 @dataclass
 class MaterialStreamInput(StreamInput):
     """Inputs for :class:`MaterialStream`."""
 
-    flash_type_option: str | None = field(default=None, metadata={"alias": "MIXED_SPEC", "sub": "MIXED"})
+    flash_type: FlashType | None = field(default=None, metadata={"alias": "MIXED_SPEC", "sub": "MIXED"})
     temperature: float | None = field(default=None, metadata={"alias": "TEMP", "sub": "MIXED"})
     pressure: float | None = field(default=None, metadata={"alias": "PRES", "sub": "MIXED"})
     vapor_fraction: float | None = field(default=None, metadata={"alias": "VFRAC", "sub": "MIXED"})
     total_flow: float | None = field(default=None, metadata={"alias": "TOTFLOW"})
+    total_flow_basis: str | None = field(default=None, metadata={"alias": "TOTFLOW", "basis": True})
     component_flow: float | None = field(default=None, metadata={"alias": "FLOW", "sub": "MIXED"})
+    mass_frac: dict[str, float] | None = field(default=None, metadata={"alias": "MASSFRAC", "sub": "MIXED", "comps": True})
 
 
 class MaterialStream(Stream[MaterialStreamInput]):
@@ -562,8 +591,9 @@ class MaterialStream(Stream[MaterialStreamInput]):
     def set_input(self, inputs: MaterialStreamInput) -> None:
         """Apply MaterialStream inputs from a :class:`MaterialStreamInput`.
 
-        Supported fields: ``flash_type_option``, ``temperature``, ``pressure``,
-        ``vapor_fraction``, ``total_flow``, ``component_flow``.
+        Supported fields: ``flash_type``, ``temperature``, ``pressure``,
+        ``vapor_fraction``, ``total_flow``, ``total_flow_basis``,
+        ``component_flow``, ``mass_frac``.
         """
         self._set_input(inputs)
 
