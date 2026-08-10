@@ -86,8 +86,28 @@ class UnitAspen(object):
         code = version_name.split(" ")[2]
         return AspenVersionCode(code).name
 
-    def create_simulation(self, **kwargs) -> None:
-        self.app.InitNew(**kwargs)
+    def create_simulation(
+        self,
+        host_type: str | None = None,
+        node: str | None = None,
+        username: str | None = None,
+        password: str | None = None,
+        working_directory: str | Path | None = None,
+        failmode: int | None = None,
+    ) -> None:
+        """Create a new, untitled Aspen Plus simulation (``InitNew2``).
+
+        Args are passed positionally to ``InitNew2`` (its leading ``notused`` /
+        ``notused2`` args are always omitted). For remote DCOM targets, set
+        ``working_directory`` to a directory that exists on the remote machine.
+        """
+        self.app.InitNew2(
+            None, None,
+            host_type, node, username, password,
+            str(working_directory) if working_directory is not None else None,
+            failmode,
+        )
+        logger.success("Created a new Aspen Plus simulation")
 
     def open_bkp(self, path: str | Path, **kwargs) -> None:
         """Open an Aspen Plus backup file (``.bkp``) via ``InitFromArchive2``.
