@@ -576,9 +576,9 @@ class MaterialStreamInput(StreamInput):
     temperature: float | None = field(default=None, metadata={"alias": "TEMP", "sub": "MIXED"})
     pressure: float | None = field(default=None, metadata={"alias": "PRES", "sub": "MIXED"})
     vapor_fraction: float | None = field(default=None, metadata={"alias": "VFRAC", "sub": "MIXED"})
-    total_flow: float | None = field(default=None, metadata={"alias": "TOTFLOW"})
     total_flow_basis: str | None = field(default=None, metadata={"alias": "TOTFLOW", "basis": True})
-    component_flow: float | None = field(default=None, metadata={"alias": "FLOW", "sub": "MIXED"})
+    total_flow: float | None = field(default=None, metadata={"alias": "TOTFLOW"})
+    component_flow: dict[str, float] | None = field(default=None, metadata={"alias": "FLOW", "sub": "MIXED", "comps": True})
     mass_frac: dict[str, float] | None = field(default=None, metadata={"alias": "MASSFRAC", "sub": "MIXED", "comps": True})
 
 
