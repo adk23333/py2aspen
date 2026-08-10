@@ -24,7 +24,8 @@ every recorded operation in order.
 
 from __future__ import annotations
 
-from typing import Callable, cast
+from collections.abc import Callable
+from typing import Any, cast
 
 from py2aspen.aspen_type import IHNode, PortType
 from py2aspen.log import logger
@@ -106,7 +107,7 @@ class Action:
 
         The owning block is recovered from the bound port method (e.g. ``b1.f_in``).
         """
-        block = cast(Block, getattr(port, "__self__"))
+        block = cast(Block, cast(Any, port).__self__)
         self._operations.append(("connect", (block, stream, port())))
         return self
 
@@ -115,7 +116,7 @@ class Action:
 
         The owning block is recovered from the bound port method (e.g. ``b1.f_in``).
         """
-        block = cast(Block, getattr(port, "__self__"))
+        block = cast(Block, cast(Any, port).__self__)
         self._operations.append(("disconnect", (block, stream, port())))
         return self
 
@@ -150,6 +151,7 @@ class Action:
                     logger.info("Placed block {} (type {})", item.name, item.type())
                 else:
                     node = sn.Elements.Add(f"{item.name}!{item.type()}")
+                    item._node = node  # bind the stream node for property setters
                     logger.info("Placed stream {} (type {})", item.name, item.type())
             elif op_name == "delete":
                 item = args[0]
