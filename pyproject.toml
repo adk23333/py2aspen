@@ -1,6 +1,6 @@
 [project]
 name = "py2aspen"
-version = "0.1.1"
+version = "0.2.0"
 description = "A Python wrapper for Aspen Plus built on comtypes."
 readme = "README.md"
 authors = [{ name = "SanLiy" }]
