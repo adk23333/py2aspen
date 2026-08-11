@@ -3,19 +3,20 @@
 <h4 align="center">基于 comtypes 的 Aspen Plus Python 封装库 ✨</h4>
 
 <p align="center">
-  <a href="https://pypi.org/project/py2aspen/"><img alt="PyPI version" src="https://img.shields.io/pypi/v/py2aspen?style=for-the-badge&logo=pypi&logoColor=white"></a>
-  <img alt="Python" src="https://img.shields.io/badge/Python-3.11%2B-blue?style=for-the-badge&logo=python&logoColor=white">
-  <a href="https://pypi.org/project/py2aspen/"><img alt="Downloads" src="https://img.shields.io/pypi/dm/py2aspen?style=for-the-badge"></a>
-  <a href="https://github.com/adk23333/py2aspen"><img alt="Stars" src="https://img.shields.io/github/stars/adk23333/py2aspen?style=for-the-badge&logo=github"></a>
-  <a href="https://github.com/adk23333/py2aspen/issues"><img alt="Issues" src="https://img.shields.io/github/issues/adk23333/py2aspen?style=for-the-badge"></a>
-  <a href="LICENSE"><img alt="License" src="https://img.shields.io/github/license/adk23333/py2aspen?style=for-the-badge"></a>
+  <a href="https://pypi.org/project/py2aspen/"><img alt="PyPI version" src="https://img.shields.io/pypi/v/py2aspen?style=flat&logo=pypi&logoColor=white"></a>
+  <img alt="Python" src="https://img.shields.io/badge/Python-3.11%2B-blue?style=flat&logo=python&logoColor=white">
+  <a href="https://pypi.org/project/py2aspen/"><img alt="Downloads" src="https://img.shields.io/pypi/dm/py2aspen?style=flat"></a>
+  <a href="https://github.com/adk23333/py2aspen"><img alt="Stars" src="https://img.shields.io/github/stars/adk23333/py2aspen?style=flat&logo=github"></a>
+  <a href="https://github.com/adk23333/py2aspen/issues"><img alt="Issues" src="https://img.shields.io/github/issues/adk23333/py2aspen?style=flat"></a>
+  <a href="LICENSE"><img alt="License" src="https://img.shields.io/github/license/adk23333/py2aspen?style=flat"></a>
 </p>
 
 <p align="center">
-  <img alt="comtypes" src="https://img.shields.io/badge/comtypes-1.4+-blue?style=for-the-badge&logo=python">
-  <img alt="uv" src="https://img.shields.io/badge/uv-dependency%20management-4c1?style=for-the-badge&logo=astral">
-  <img alt="ty" src="https://img.shields.io/badge/ty-type%20checker-7b3?style=for-the-badge">
-  <img alt="ruff" src="https://img.shields.io/badge/ruff-code%20style-4a1?style=for-the-badge&logo=ruff">
+  <img alt="comtypes" src="https://img.shields.io/badge/comtypes-1.4+-blue?style=flat&logo=python">
+  <img alt="uv" src="https://img.shields.io/badge/uv-dependency%20management-4c1?style=flat&logo=astral">
+  <img alt="ty" src="https://img.shields.io/badge/ty-type%20checker-7b3?style=flat">
+  <img alt="ruff" src="https://img.shields.io/badge/ruff-code%20style-4a1?style=flat&logo=ruff">
+  <img alt="QQ交流群" src="https://img.shields.io/badge/QQ%E4%BA%A4%E6%B5%81%E7%BE%A4-562721026-12b7f5?style=flat&logo=qq&logoColor=white">
 </p>
 
 [English](./README.md) | 简体中文
@@ -106,5 +107,11 @@ uv run pytest -v        # 或在 VS Code 中运行 pytest 任务
 感谢所有为 py2aspen 做出贡献的人！
 
 ![Contributors]([![contributors](https://contrib.rocks/image?repo=adk23333/py2aspen)](https://github.com/adk23333/py2aspen/graphs/contributors))
+
+同时感谢以下群聊内群友的帮助：
+
+QQ：562721026
+
+TG：暂无
 
 欢迎任何形式的贡献：提交 [Issue](https://github.com/adk23333/py2aspen/issues) 报告问题、提出建议，或发起 [Pull Request](https://github.com/adk23333/py2aspen/pulls) 改进代码。

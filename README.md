@@ -3,19 +3,20 @@
 <h4 align="center">A Python wrapper for Aspen Plus built on comtypes ✨</h4>
 
 <p align="center">
-  <a href="https://pypi.org/project/py2aspen/"><img alt="PyPI version" src="https://img.shields.io/pypi/v/py2aspen?style=for-the-badge&logo=pypi&logoColor=white"></a>
-  <img alt="Python" src="https://img.shields.io/badge/Python-3.11%2B-blue?style=for-the-badge&logo=python&logoColor=white">
-  <a href="https://pypi.org/project/py2aspen/"><img alt="Downloads" src="https://img.shields.io/pypi/dm/py2aspen?style=for-the-badge"></a>
-  <a href="https://github.com/adk23333/py2aspen"><img alt="Stars" src="https://img.shields.io/github/stars/adk23333/py2aspen?style=for-the-badge&logo=github"></a>
-  <a href="https://github.com/adk23333/py2aspen/issues"><img alt="Issues" src="https://img.shields.io/github/issues/adk23333/py2aspen?style=for-the-badge"></a>
-  <a href="LICENSE"><img alt="License" src="https://img.shields.io/github/license/adk23333/py2aspen?style=for-the-badge"></a>
+  <a href="https://pypi.org/project/py2aspen/"><img alt="PyPI version" src="https://img.shields.io/pypi/v/py2aspen?style=flat&logo=pypi&logoColor=white"></a>
+  <img alt="Python" src="https://img.shields.io/badge/Python-3.11%2B-blue?style=flat&logo=python&logoColor=white">
+  <a href="https://pypi.org/project/py2aspen/"><img alt="Downloads" src="https://img.shields.io/pypi/dm/py2aspen?style=flat"></a>
+  <a href="https://github.com/adk23333/py2aspen"><img alt="Stars" src="https://img.shields.io/github/stars/adk23333/py2aspen?style=flat&logo=github"></a>
+  <a href="https://github.com/adk23333/py2aspen/issues"><img alt="Issues" src="https://img.shields.io/github/issues/adk23333/py2aspen?style=flat"></a>
+  <a href="LICENSE"><img alt="License" src="https://img.shields.io/github/license/adk23333/py2aspen?style=flat"></a>
 </p>
 
 <p align="center">
-  <img alt="comtypes" src="https://img.shields.io/badge/comtypes-1.4+-blue?style=for-the-badge&logo=python">
-  <img alt="uv" src="https://img.shields.io/badge/uv-dependency%20management-4c1?style=for-the-badge&logo=astral">
-  <img alt="ty" src="https://img.shields.io/badge/ty-type%20checker-7b3?style=for-the-badge">
-  <img alt="ruff" src="https://img.shields.io/badge/ruff-code%20style-4a1?style=for-the-badge&logo=ruff">
+  <img alt="comtypes" src="https://img.shields.io/badge/comtypes-1.4+-blue?style=flat&logo=python">
+  <img alt="uv" src="https://img.shields.io/badge/uv-dependency%20management-4c1?style=flat&logo=astral">
+  <img alt="ty" src="https://img.shields.io/badge/ty-type%20checker-7b3?style=flat">
+  <img alt="ruff" src="https://img.shields.io/badge/ruff-code%20style-4a1?style=flat&logo=ruff">
+  <img alt="QQ Group" src="https://img.shields.io/badge/QQ%20Group-562721026-12b7f5?style=flat&logo=qq&logoColor=white">
 </p>
 
 English | [简体中文](README.zh-CN.md)
@@ -106,5 +107,11 @@ uv run pytest -v        # Or run the pytest task in VS Code
 Thanks to everyone who contributes to py2aspen!
 
 ![Contributors]([![contributors](https://contrib.rocks/image?repo=adk23333/py2aspen)](https://github.com/adk23333/py2aspen/graphs/contributors))
+
+Special thanks to the friends in our chat group:
+
+QQ: 562721026
+
+TG: None
 
 Contributions of any kind are welcome: open an [Issue](https://github.com/adk23333/py2aspen/issues) to report problems or suggest features, or submit a [Pull Request](https://github.com/adk23333/py2aspen/pulls) to improve the code.
