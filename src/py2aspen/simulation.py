@@ -62,6 +62,19 @@ __all__ = [
 
 
 @dataclass
+class Units:
+    """Unit specifications for block/stream input parameters."""
+
+    temperature: str | None = None  # C, K, F, R
+    pressure: str | None = None  # bar, atm, Pa, kPa, psi
+    duty: str | None = None  # Watt, kW, Btu/hr, cal/sec
+    volume: str | None = None  # cum, L, cuft, gal
+    length: str | None = None  # meter, ft, cm, mm, in
+    heat_transfer_coefficient: str | None = None  # kcal/hr-sqm-K, Btu/hr-ft2-R
+    flow: str | None = None  # kg/hr, kmol/hr (basis-dependent)
+
+
+@dataclass
 class BlockInput:
     """Base class for block input parameter dataclasses.
 
@@ -70,6 +83,8 @@ class BlockInput:
     metadata; a ``"spec_opt"`` metadata means ``SPEC_OPT`` must be written to
     that value before the parameter itself.
     """
+
+    units: Units | None = field(default=None)
 
 
 @dataclass
@@ -82,16 +97,18 @@ class StreamInput:
     node (e.g. ``MIXED``).
     """
 
+    units: Units | None = field(default=None)
+
 @dataclass
 class RCSTRInput(BlockInput):
     """Inputs for :class:`RCSTR` (temperature/duty/vapor_fraction set ``SPEC_OPT``)."""
 
     spec_type: str | None = field(default=None, metadata={"alias": "SPEC_TYPE"})
-    volume: float | None = field(default=None, metadata={"alias": "VOL"})
+    volume: float | None = field(default=None, metadata={"alias": "VOL", "unit_attr": "volume"})
     residence_time: float | None = field(default=None, metadata={"alias": "RES_TIME"})
-    temperature: float | None = field(default=None, metadata={"alias": "TEMP", "spec_opt": "TEMP"})
-    pressure: float | None = field(default=None, metadata={"alias": "PRES"})
-    duty: float | None = field(default=None, metadata={"alias": "DUTY", "spec_opt": "DUTY"})
+    temperature: float | None = field(default=None, metadata={"alias": "TEMP", "spec_opt": "TEMP", "unit_attr": "temperature"})
+    pressure: float | None = field(default=None, metadata={"alias": "PRES", "unit_attr": "pressure"})
+    duty: float | None = field(default=None, metadata={"alias": "DUTY", "spec_opt": "DUTY", "unit_attr": "duty"})
     vapor_fraction: float | None = field(default=None, metadata={"alias": "VFRAC", "spec_opt": "VFRAC"})
     phase: str | None = field(default=None, metadata={"alias": "PHASE"})
     phase_number: int | None = field(default=None, metadata={"alias": "NPHASE"})
@@ -103,17 +120,17 @@ class RPlugInput(BlockInput):
 
     reactor_type: str | None = field(default=None, metadata={"alias": "TYPE"})
     operating_condition: str | None = field(default=None, metadata={"alias": "OPT_TSPEC"})
-    reactor_temperature: float | None = field(default=None, metadata={"alias": "REAC_TEMP"})
-    temperature: float | None = field(default=None, metadata={"alias": "TEMP"})
-    pressure: float | None = field(default=None, metadata={"alias": "PRES"})
+    reactor_temperature: float | None = field(default=None, metadata={"alias": "REAC_TEMP", "unit_attr": "temperature"})
+    temperature: float | None = field(default=None, metadata={"alias": "TEMP", "unit_attr": "temperature"})
+    pressure: float | None = field(default=None, metadata={"alias": "PRES", "unit_attr": "pressure"})
     phase: str | None = field(default=None, metadata={"alias": "PHASE"})
     phase_number: int | None = field(default=None, metadata={"alias": "NPHASE"})
-    tube_length: float | None = field(default=None, metadata={"alias": "LENGTH"})
-    tube_diameter: float | None = field(default=None, metadata={"alias": "DIAM"})
+    tube_length: float | None = field(default=None, metadata={"alias": "LENGTH", "unit_attr": "length"})
+    tube_diameter: float | None = field(default=None, metadata={"alias": "DIAM", "unit_attr": "length"})
     number_of_tubes: int | None = field(default=None, metadata={"alias": "NTUBE"})
-    heat_transfer_coefficient: float | None = field(default=None, metadata={"alias": "U"})
+    heat_transfer_coefficient: float | None = field(default=None, metadata={"alias": "U", "unit_attr": "heat_transfer_coefficient"})
     pressure_drop_option: str | None = field(default=None, metadata={"alias": "OPT_PDROP"})
-    process_pressure_drop: float | None = field(default=None, metadata={"alias": "PDROP"})
+    process_pressure_drop: float | None = field(default=None, metadata={"alias": "PDROP", "unit_attr": "pressure"})
     activate_reactions: str | None = field(default=None, metadata={"alias": "REACSYS"})
 
 
@@ -124,8 +141,8 @@ class DSTWUInput(BlockInput):
     stage_reflux_option: str | None = field(default=None, metadata={"alias": "OPT_NTRR"})
     number_of_stages: int | None = field(default=None, metadata={"alias": "NSTAGE"})
     reflux_ratio: float | None = field(default=None, metadata={"alias": "RR"})
-    condenser_pressure: float | None = field(default=None, metadata={"alias": "PTOP"})
-    reboiler_pressure: float | None = field(default=None, metadata={"alias": "PBOT"})
+    condenser_pressure: float | None = field(default=None, metadata={"alias": "PTOP", "unit_attr": "pressure"})
+    reboiler_pressure: float | None = field(default=None, metadata={"alias": "PBOT", "unit_attr": "pressure"})
     light_key: str | None = field(default=None, metadata={"alias": "LIGHTKEY"})
     heavy_key: str | None = field(default=None, metadata={"alias": "HEAVYKEY"})
     light_key_recovery: float | None = field(default=None, metadata={"alias": "RECOVL"})
@@ -139,14 +156,14 @@ class Flash2Input(BlockInput):
     """Inputs for :class:`Flash2`."""
 
     flash_type: FlashType | None = field(default=None, metadata={"alias": "SPEC_OPT"})
-    temperature: float | None = field(default=None, metadata={"alias": "TEMP"})
-    pressure: float | None = field(default=None, metadata={"alias": "PRES"})
-    duty: float | None = field(default=None, metadata={"alias": "DUTY"})
+    temperature: float | None = field(default=None, metadata={"alias": "TEMP", "unit_attr": "temperature"})
+    pressure: float | None = field(default=None, metadata={"alias": "PRES", "unit_attr": "pressure"})
+    duty: float | None = field(default=None, metadata={"alias": "DUTY", "unit_attr": "duty"})
     vapor_fraction: float | None = field(default=None, metadata={"alias": "VFRAC"})
     phase: str | None = field(default=None, metadata={"alias": "Phase"})
     phase_number: int | None = field(default=None, metadata={"alias": "NPhase"})
-    temperature_estimate: float | None = field(default=None, metadata={"alias": "T_EST"})
-    pressure_estimate: float | None = field(default=None, metadata={"alias": "P_EST"})
+    temperature_estimate: float | None = field(default=None, metadata={"alias": "T_EST", "unit_attr": "temperature"})
+    pressure_estimate: float | None = field(default=None, metadata={"alias": "P_EST", "unit_attr": "pressure"})
     max_iteration: int | None = field(default=None, metadata={"alias": "MAXIT"})
     error_tolerance: float | None = field(default=None, metadata={"alias": "TOL"})
 
@@ -155,10 +172,10 @@ class Flash2Input(BlockInput):
 class MixerInput(BlockInput):
     """Inputs for :class:`Mixer`."""
 
-    pressure: float | None = field(default=None, metadata={"alias": "PRES"})
+    pressure: float | None = field(default=None, metadata={"alias": "PRES", "unit_attr": "pressure"})
     phase: str | None = field(default=None, metadata={"alias": "Phase"})
     phase_number: int | None = field(default=None, metadata={"alias": "NPhase"})
-    temperature_estimate: float | None = field(default=None, metadata={"alias": "T_EST"})
+    temperature_estimate: float | None = field(default=None, metadata={"alias": "T_EST", "unit_attr": "temperature"})
     max_iteration: int | None = field(default=None, metadata={"alias": "MAXIT"})
     error_tolerance: float | None = field(default=None, metadata={"alias": "TOL"})
 
@@ -168,18 +185,18 @@ class HeaterInput(BlockInput):
     """Inputs for :class:`Heater`."""
 
     flash_type: FlashType | None = field(default=None, metadata={"alias": "SPEC_OPT"})
-    temperature: float | None = field(default=None, metadata={"alias": "TEMP"})
-    temperature_change: float | None = field(default=None, metadata={"alias": "DELT"})
-    degrees_superheating: float | None = field(default=None, metadata={"alias": "DEGSUP"})
-    degrees_subcooling: float | None = field(default=None, metadata={"alias": "DEGSUB"})
-    pressure: float | None = field(default=None, metadata={"alias": "PRES"})
-    duty: float | None = field(default=None, metadata={"alias": "DUTY"})
+    temperature: float | None = field(default=None, metadata={"alias": "TEMP", "unit_attr": "temperature"})
+    temperature_change: float | None = field(default=None, metadata={"alias": "DELT", "unit_attr": "temperature"})
+    degrees_superheating: float | None = field(default=None, metadata={"alias": "DEGSUP", "unit_attr": "temperature"})
+    degrees_subcooling: float | None = field(default=None, metadata={"alias": "DEGSUB", "unit_attr": "temperature"})
+    pressure: float | None = field(default=None, metadata={"alias": "PRES", "unit_attr": "pressure"})
+    duty: float | None = field(default=None, metadata={"alias": "DUTY", "unit_attr": "duty"})
     vapor_fraction: float | None = field(default=None, metadata={"alias": "VFRAC"})
     pressure_drop_correlation: str | None = field(default=None, metadata={"alias": "DPPARM"})
     phase: str | None = field(default=None, metadata={"alias": "Phase"})
     phase_number: int | None = field(default=None, metadata={"alias": "NPhase"})
-    temperature_estimate: float | None = field(default=None, metadata={"alias": "T_EST"})
-    pressure_estimate: float | None = field(default=None, metadata={"alias": "P_EST"})
+    temperature_estimate: float | None = field(default=None, metadata={"alias": "T_EST", "unit_attr": "temperature"})
+    pressure_estimate: float | None = field(default=None, metadata={"alias": "P_EST", "unit_attr": "pressure"})
     max_iteration: int | None = field(default=None, metadata={"alias": "MAXIT"})
     error_tolerance: float | None = field(default=None, metadata={"alias": "TOL"})
 
@@ -196,14 +213,14 @@ class RadfracInput(BlockInput):
     phase_number: int | None = field(default=None, metadata={"alias": "NPhase"})
     convergence_method: str | None = field(default=None, metadata={"alias": "CONV_METH"})
     reflux_ratio: float | None = field(default=None, metadata={"alias": "BASIS_RR"})
-    condenser_pressure: float | None = field(default=None, metadata={"alias": "PRES1"})
+    condenser_pressure: float | None = field(default=None, metadata={"alias": "PRES1", "unit_attr": "pressure"})
 
 
 @dataclass
 class SplitterInput(BlockInput):
     """Inputs for :class:`Splitter`."""
 
-    pressure: float | None = field(default=None, metadata={"alias": "PRES1"})
+    pressure: float | None = field(default=None, metadata={"alias": "PRES1", "unit_attr": "pressure"})
     phase: str | None = field(default=None, metadata={"alias": "Phase"})
     phase_number: int | None = field(default=None, metadata={"alias": "NPhase"})
     max_iteration: int | None = field(default=None, metadata={"alias": "MAXIT"})
@@ -215,17 +232,17 @@ class RYieldInput(BlockInput):
     """Inputs for :class:`RYield`."""
 
     flash_type: FlashType | None = field(default=None, metadata={"alias": "SPEC_OPT"})
-    temperature: float | None = field(default=None, metadata={"alias": "TEMP"})
-    temperature_change: float | None = field(default=None, metadata={"alias": "DELT"})
-    pressure: float | None = field(default=None, metadata={"alias": "PRES"})
-    duty: float | None = field(default=None, metadata={"alias": "DUTY"})
+    temperature: float | None = field(default=None, metadata={"alias": "TEMP", "unit_attr": "temperature"})
+    temperature_change: float | None = field(default=None, metadata={"alias": "DELT", "unit_attr": "temperature"})
+    pressure: float | None = field(default=None, metadata={"alias": "PRES", "unit_attr": "pressure"})
+    duty: float | None = field(default=None, metadata={"alias": "DUTY", "unit_attr": "duty"})
     vapor_fraction: float | None = field(default=None, metadata={"alias": "VFRAC"})
     phase: str | None = field(default=None, metadata={"alias": "Phase"})
     phase_number: int | None = field(default=None, metadata={"alias": "NPhase"})
     yield_calc_option: str | None = field(default=None, metadata={"alias": "USER_YIELD"})
     activate_reactions: str | None = field(default=None, metadata={"alias": "REACSYS"})
-    temperature_estimate: float | None = field(default=None, metadata={"alias": "T_EST"})
-    pressure_estimate: float | None = field(default=None, metadata={"alias": "P_EST"})
+    temperature_estimate: float | None = field(default=None, metadata={"alias": "T_EST", "unit_attr": "temperature"})
+    pressure_estimate: float | None = field(default=None, metadata={"alias": "P_EST", "unit_attr": "pressure"})
     max_iteration: int | None = field(default=None, metadata={"alias": "MAXIT"})
     error_tolerance: float | None = field(default=None, metadata={"alias": "TOL"})
 
@@ -243,7 +260,7 @@ def _resolve_name(name: str | None) -> str:
     raise ValueError("cannot infer name: object not assigned to a variable")
 
 
-class Block(Generic[BlockInputT], ABC):
+class Block(ABC, Generic[BlockInputT]):
     """Base class for unit-operation blocks on the Aspen Plus flowsheet.
 
     Subclasses must implement :meth:`type` and :meth:`set_input`.  The
@@ -269,16 +286,25 @@ class Block(Generic[BlockInputT], ABC):
         if node is None:
             raise RuntimeError("block node not injected; call flowsheet.place first")
         input_cls = cast(type[BlockInputT], get_type_hints(type(self).set_input)["inputs"])
-        values: dict[str, object] = {}
+        values: dict[str, Any] = {}
+        unit_kwargs: dict[str, str] = {}
         for f in fields(input_cls):
-            param_node = node.Elements("Input").Elements(f.metadata["alias"])
+            if "alias" not in f.metadata:
+                continue  # skip non-parameter fields (e.g. units)
+            meta = f.metadata
+            param_node = node.Elements("Input").Elements(meta["alias"])
             if param_node is None:
                 values[f.name] = None
                 continue
             try:
                 values[f.name] = param_node.AttributeValue(HAPAttributeType.HAP_VALUE)
+                if "unit_attr" in meta and meta["unit_attr"] not in unit_kwargs:
+                    unit_val = param_node.AttributeValue(HAPAttributeType.HAP_UOM)
+                    if unit_val is not None:
+                        unit_kwargs[meta["unit_attr"]] = str(unit_val)
             except COMError:
                 values[f.name] = None
+        values["units"] = Units(**unit_kwargs) if unit_kwargs else None
         return input_cls(**values)
 
     def _set_input(self, inputs: BlockInputT) -> None:
@@ -297,7 +323,13 @@ class Block(Generic[BlockInputT], ABC):
             param_node = node.Elements("Input").Elements(param)
             cast(Any, param_node).AttributeValue[HAPAttributeType.HAP_VALUE, 0] = value
 
+        def write_unit(param: str, unit: str) -> None:
+            param_node = node.Elements("Input").Elements(param)
+            cast(Any, param_node).AttributeValue[HAPAttributeType.HAP_UOM, 0] = unit
+
         for f in fields(inputs):
+            if "alias" not in f.metadata:
+                continue  # skip non-parameter fields (e.g. units)
             value = getattr(inputs, f.name)
             if value is None:
                 continue
@@ -305,6 +337,10 @@ class Block(Generic[BlockInputT], ABC):
             if "spec_opt" in meta:
                 write("SPEC_OPT", meta["spec_opt"])
             write(meta["alias"], value)
+            if "unit_attr" in meta and inputs.units is not None:
+                unit_val = getattr(inputs.units, meta["unit_attr"])
+                if unit_val is not None:
+                    write_unit(meta["alias"], unit_val)
 
 
 class RCSTR(Block[RCSTRInput]):
@@ -472,7 +508,7 @@ class RYield(Block[RYieldInput]):
         self._set_input(inputs)
 
 
-class Stream(Generic[StreamInputT], ABC):
+class Stream(ABC, Generic[StreamInputT]):
     """Base class for material, heat, or work streams.
 
     Subclasses must implement :meth:`type` and :meth:`set_input`.  The
@@ -498,9 +534,12 @@ class Stream(Generic[StreamInputT], ABC):
         if node is None:
             raise RuntimeError("stream node not injected; call flowsheet.place/bind first")
         input_cls = cast(type[StreamInputT], get_type_hints(type(self).set_input)["inputs"])
-        values: dict[str, object] = {}
+        values: dict[str, Any] = {}
+        unit_kwargs: dict[str, str] = {}
         for f in fields(input_cls):
             meta = f.metadata
+            if "alias" not in meta:
+                continue  # skip non-parameter fields (e.g. units)
             param_node = node.Elements("Input").Elements(meta["alias"])
             if param_node is None:
                 values[f.name] = None
@@ -513,19 +552,28 @@ class Stream(Generic[StreamInputT], ABC):
                     if comp_node is None:
                         values[f.name] = None
                         continue
-                    comp_values: dict[str, object] = {}
+                    comp_values: dict[str, Any] = {}
                     for elem in comp_node.Elements:
                         elem_node = cast(IHNode, elem)
                         comp_values[str(elem_node.Name())] = elem_node.AttributeValue(HAPAttributeType.HAP_VALUE)
                     values[f.name] = comp_values
+                    if "unit_attr" in meta and meta["unit_attr"] not in unit_kwargs:
+                        unit_val = param_node.AttributeValue(HAPAttributeType.HAP_UOM)
+                        if unit_val is not None:
+                            unit_kwargs[meta["unit_attr"]] = str(unit_val)
                 else:
                     param_node = param_node.Elements(meta["sub"]) if "sub" in meta else param_node
                     if param_node is None:
                         values[f.name] = None
                         continue
                     values[f.name] = param_node.AttributeValue(HAPAttributeType.HAP_VALUE)
+                    if "unit_attr" in meta and meta["unit_attr"] not in unit_kwargs:
+                        unit_val = param_node.AttributeValue(HAPAttributeType.HAP_UOM)
+                        if unit_val is not None:
+                            unit_kwargs[meta["unit_attr"]] = str(unit_val)
             except COMError:
                 values[f.name] = None
+        values["units"] = Units(**unit_kwargs) if unit_kwargs else None
         return input_cls(**values)
 
     def _set_input(self, inputs: StreamInputT) -> None:
@@ -549,6 +597,8 @@ class Stream(Generic[StreamInputT], ABC):
             return pn
 
         for f in fields(inputs):
+            if "alias" not in f.metadata:
+                continue  # skip non-parameter fields (e.g. units)
             value = getattr(inputs, f.name)
             if value is None:
                 continue
@@ -558,7 +608,7 @@ class Stream(Generic[StreamInputT], ABC):
                     HAPAttributeType.HAP_BASIS, 0
                 ] = value
             elif "comps" in meta:
-                for comp, comp_value in cast(dict[str, object], value).items():
+                for comp, comp_value in cast(dict[str, Any], value).items():
                     cast(Any, param_node(meta["alias"], meta.get("sub")).Elements(comp)).AttributeValue[
                         HAPAttributeType.HAP_VALUE, 0
                     ] = comp_value
@@ -566,6 +616,14 @@ class Stream(Generic[StreamInputT], ABC):
                 cast(Any, param_node(meta["alias"], meta.get("sub"))).AttributeValue[
                     HAPAttributeType.HAP_VALUE, 0
                 ] = value
+            if "unit_attr" in meta and inputs.units is not None:
+                unit_val = getattr(inputs.units, meta["unit_attr"])
+                if unit_val is not None:
+                    if "comps" in meta:
+                        target_unit = node.Elements("Input").Elements(meta["alias"])
+                    else:
+                        target_unit = param_node(meta["alias"], meta.get("sub"))
+                    cast(Any, target_unit).AttributeValue[HAPAttributeType.HAP_UOM, 0] = unit_val
 
 
 @dataclass
@@ -573,12 +631,12 @@ class MaterialStreamInput(StreamInput):
     """Inputs for :class:`MaterialStream`."""
 
     flash_type: FlashType | None = field(default=None, metadata={"alias": "MIXED_SPEC", "sub": "MIXED"})
-    temperature: float | None = field(default=None, metadata={"alias": "TEMP", "sub": "MIXED"})
-    pressure: float | None = field(default=None, metadata={"alias": "PRES", "sub": "MIXED"})
+    temperature: float | None = field(default=None, metadata={"alias": "TEMP", "sub": "MIXED", "unit_attr": "temperature"})
+    pressure: float | None = field(default=None, metadata={"alias": "PRES", "sub": "MIXED", "unit_attr": "pressure"})
     vapor_fraction: float | None = field(default=None, metadata={"alias": "VFRAC", "sub": "MIXED"})
     total_flow_basis: str | None = field(default=None, metadata={"alias": "TOTFLOW", "basis": True})
-    total_flow: float | None = field(default=None, metadata={"alias": "TOTFLOW"})
-    component_flow: dict[str, float] | None = field(default=None, metadata={"alias": "FLOW", "sub": "MIXED", "comps": True})
+    total_flow: float | None = field(default=None, metadata={"alias": "TOTFLOW", "unit_attr": "flow"})
+    component_flow: dict[str, float] | None = field(default=None, metadata={"alias": "FLOW", "sub": "MIXED", "comps": True, "unit_attr": "flow"})
     mass_frac: dict[str, float] | None = field(default=None, metadata={"alias": "MASSFRAC", "sub": "MIXED", "comps": True})
 
 
