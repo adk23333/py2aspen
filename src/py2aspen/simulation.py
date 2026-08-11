@@ -57,6 +57,7 @@ __all__ = [
     "SplitterInput",
     "Stream",
     "StreamInput",
+    "Units",
     "WorkStream",
 ]
 
