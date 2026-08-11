@@ -10,10 +10,9 @@ default_format: str = (
     "{message}"
 )
 
-logger.remove(0)  # 移除默认的 stderr 输出
+def set_level(level: str) -> None:
+    """Replace the stdout handler with the given minimum log level."""
+    logger.remove()
+    logger.add(sys.stdout, level=level, format=default_format)
 
-logger.add(
-    sys.stdout,
-    level="INFO",
-    format=default_format,
-)
+set_level("INFO")

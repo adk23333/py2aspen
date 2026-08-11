@@ -120,3 +120,22 @@ class FlashType(StrEnum):
     S = "S"  # entropy only
     H = "H"  # enthalpy only
     Q = "Q"  # heat duty only
+
+class FlowBasis(StrEnum):
+    """Total-flow basis for material streams (``FLOWBASE/MIXED`` values)."""
+
+    MASS = "MASS"  # mass flow basis
+    MOLE = "MOLE"  # molar flow basis
+    STDVOL = "STDVOL"  # standard-volume flow basis
+
+class CompositionBasis(StrEnum):
+    """Composition basis for material streams (``BASIS/MIXED`` values)."""
+
+    MASS_FRAC = "MASS-FRAC"  # mass fraction
+    MOLE_FRAC = "MOLE-FRAC"  # mole fraction
+    STDVOL_FRAC = "STDVOL-FRAC"  # standard-volume fraction
+    MASS_FLOW = "MASS-FLOW"  # mass flow per component
+    MOLE_FLOW = "MOLE-FLOW"  # mole flow per component
+    STDVOL_FLOW = "STDVOL-FLOW"  # standard-volume flow per component
+    MASS_CONC = "MASS-CONC"  # mass concentration per component
+    MOLE_CONC = "MOLE-CONC"  # mole concentration per component

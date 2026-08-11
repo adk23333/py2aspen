@@ -24,7 +24,8 @@ from typing import Any, Generic, TypeVar, cast, get_type_hints
 
 from comtypes import COMError
 
-from py2aspen.aspen_type import FlashType, HAPAttributeType, IHNode, PortType
+from py2aspen.aspen_type import CompositionBasis, FlashType, FlowBasis, HAPAttributeType, IHNode, PortType
+from py2aspen.log import logger
 
 BlockInputT = TypeVar("BlockInputT", bound="BlockInput")
 StreamInputT = TypeVar("StreamInputT", bound="StreamInput")
@@ -73,7 +74,8 @@ class Units:
         volume: cum, L, cuft, gal
         length: meter, ft, cm, mm, in
         heat_transfer_coefficient: kcal/hr-sqm-K, Btu/hr-ft2-R
-        flow: kg/hr, kmol/hr (basis-dependent)
+        total_flow_rate: kg/hr, kmol/hr (basis-dependent)
+        composition_flow: kg/hr, kmol/hr (basis-dependent)
     """
 
     temperature: str | None = None
@@ -82,7 +84,8 @@ class Units:
     volume: str | None = None
     length: str | None = None
     heat_transfer_coefficient: str | None = None
-    flow: str | None = None
+    total_flow_rate: str | None = None
+    composition_flow: str | None = None
 
 
 @dataclass
@@ -330,11 +333,16 @@ class Block(ABC, Generic[BlockInputT]):
         if node is None:
             raise RuntimeError("block node not injected; call flowsheet.place first")
 
+        def log_write(param: str, attr: HAPAttributeType, value: object) -> None:
+            logger.debug("set {}/Input/{} {} = {}", node.Name(), param, attr.name, value)
+
         def write(param: str, value: object) -> None:
+            log_write(param, HAPAttributeType.HAP_VALUE, value)
             param_node = node.Elements("Input").Elements(param)
             cast(Any, param_node).AttributeValue[HAPAttributeType.HAP_VALUE, 0] = value
 
         def write_unit(param: str, unit: str) -> None:
+            log_write(param, HAPAttributeType.HAP_UOM, unit)
             param_node = node.Elements("Input").Elements(param)
             cast(Any, param_node).AttributeValue[HAPAttributeType.HAP_UOM, 0] = unit
 
@@ -347,11 +355,11 @@ class Block(ABC, Generic[BlockInputT]):
             meta = f.metadata
             if "spec_opt" in meta:
                 write("SPEC_OPT", meta["spec_opt"])
-            write(meta["alias"], value)
             if "unit_attr" in meta and inputs.units is not None:
                 unit_val = getattr(inputs.units, meta["unit_attr"])
                 if unit_val is not None:
                     write_unit(meta["alias"], unit_val)
+            write(meta["alias"], value)
 
 
 class RCSTR(Block[RCSTRInput]):
@@ -557,7 +565,11 @@ class Stream(ABC, Generic[StreamInputT]):
                 continue
             try:
                 if "basis" in meta:
-                    values[f.name] = param_node.AttributeValue(HAPAttributeType.HAP_BASIS)
+                    basis_node = param_node.Elements(meta["sub"]) if "sub" in meta else param_node
+                    if basis_node is None:
+                        values[f.name] = None
+                        continue
+                    values[f.name] = basis_node.AttributeValue(HAPAttributeType.HAP_BASIS)
                 elif "comps" in meta:
                     comp_node = param_node.Elements(meta["sub"]) if "sub" in meta else param_node
                     if comp_node is None:
@@ -569,7 +581,7 @@ class Stream(ABC, Generic[StreamInputT]):
                         comp_values[str(elem_node.Name())] = elem_node.AttributeValue(HAPAttributeType.HAP_VALUE)
                     values[f.name] = comp_values
                     if "unit_attr" in meta and meta["unit_attr"] not in unit_kwargs:
-                        unit_val = param_node.AttributeValue(HAPAttributeType.HAP_UOM)
+                        unit_val = comp_node.AttributeValue(HAPAttributeType.HAP_UOM)
                         if unit_val is not None:
                             unit_kwargs[meta["unit_attr"]] = str(unit_val)
                 else:
@@ -601,11 +613,19 @@ class Stream(ABC, Generic[StreamInputT]):
         if node is None:
             raise RuntimeError("stream node not injected; call flowsheet.place/bind first")
 
-        def param_node(param: str, sub: str | None):
+        def param_node(param: str, sub: str | None) -> IHNode:
             pn = node.Elements("Input").Elements(param)
             if sub is not None:
                 pn = pn.Elements(sub)
             return pn
+
+        def log_write(param: str, attr: HAPAttributeType, value: object, sub: str | None = None, comp: str | None = None) -> None:
+            path = f"{node.Name()}/Input/{param}"
+            if sub is not None:
+                path += f"/{sub}"
+            if comp is not None:
+                path += f"/{comp}"
+            logger.debug("set {} {} = {}", path, attr.name, value)
 
         for f in fields(inputs):
             if "alias" not in f.metadata:
@@ -614,27 +634,37 @@ class Stream(ABC, Generic[StreamInputT]):
             if value is None:
                 continue
             meta = f.metadata
+            if "unit_attr" in meta and inputs.units is not None:
+                unit_val = getattr(inputs.units, meta["unit_attr"])
+                if unit_val is not None:
+                    target_unit = param_node(meta["alias"], meta.get("sub"))
+                    log_write(meta["alias"], HAPAttributeType.HAP_UOM, unit_val, meta.get("sub"))
+                    cast(Any, target_unit).AttributeValue[HAPAttributeType.HAP_UOM, 0] = unit_val
             if "basis" in meta:
-                cast(Any, node.Elements("Input").Elements(meta["alias"])).AttributeValue[
+                log_write(meta["alias"], HAPAttributeType.HAP_BASIS, value, meta.get("sub"))
+                cast(Any, param_node(meta["alias"], meta.get("sub"))).AttributeValue[
                     HAPAttributeType.HAP_BASIS, 0
                 ] = value
             elif "comps" in meta:
+                if "basis_value" in meta:
+                    basis = meta["basis_value"]
+                    basis_override = getattr(inputs, f"{f.name}_basis", None)
+                    if basis_override is not None:
+                        basis = basis_override
+                    log_write("BASIS", HAPAttributeType.HAP_VALUE, basis, meta.get("sub"))
+                    cast(Any, param_node("BASIS", meta.get("sub"))).AttributeValue[
+                        HAPAttributeType.HAP_VALUE, 0
+                    ] = basis
                 for comp, comp_value in cast(dict[str, Any], value).items():
+                    log_write(meta["alias"], HAPAttributeType.HAP_VALUE, comp_value, meta.get("sub"), comp)
                     cast(Any, param_node(meta["alias"], meta.get("sub")).Elements(comp)).AttributeValue[
                         HAPAttributeType.HAP_VALUE, 0
                     ] = comp_value
             else:
+                log_write(meta["alias"], HAPAttributeType.HAP_VALUE, value, meta.get("sub"))
                 cast(Any, param_node(meta["alias"], meta.get("sub"))).AttributeValue[
                     HAPAttributeType.HAP_VALUE, 0
                 ] = value
-            if "unit_attr" in meta and inputs.units is not None:
-                unit_val = getattr(inputs.units, meta["unit_attr"])
-                if unit_val is not None:
-                    if "comps" in meta:
-                        target_unit = node.Elements("Input").Elements(meta["alias"])
-                    else:
-                        target_unit = param_node(meta["alias"], meta.get("sub"))
-                    cast(Any, target_unit).AttributeValue[HAPAttributeType.HAP_UOM, 0] = unit_val
 
 
 @dataclass
@@ -645,10 +675,10 @@ class MaterialStreamInput(StreamInput):
     temperature: float | None = field(default=None, metadata={"alias": "TEMP", "sub": "MIXED", "unit_attr": "temperature"})
     pressure: float | None = field(default=None, metadata={"alias": "PRES", "sub": "MIXED", "unit_attr": "pressure"})
     vapor_fraction: float | None = field(default=None, metadata={"alias": "VFRAC", "sub": "MIXED"})
-    total_flow_basis: str | None = field(default=None, metadata={"alias": "TOTFLOW", "basis": True})
-    total_flow: float | None = field(default=None, metadata={"alias": "TOTFLOW", "unit_attr": "flow"})
-    component_flow: dict[str, float] | None = field(default=None, metadata={"alias": "FLOW", "sub": "MIXED", "comps": True, "unit_attr": "flow"})
-    mass_frac: dict[str, float] | None = field(default=None, metadata={"alias": "MASSFRAC", "sub": "MIXED", "comps": True})
+    total_flow_basis: FlowBasis | None = field(default=None, metadata={"alias": "FLOWBASE", "sub": "MIXED"})
+    total_flow_rate: float | None = field(default=None, metadata={"alias": "TOTFLOW", "sub": "MIXED", "unit_attr": "total_flow_rate"})
+    composition: dict[str, float] | None = field(default=None, metadata={"alias": "FLOW", "sub": "MIXED", "comps": True, "unit_attr": "composition_flow", "basis_value": "MASS-FRAC"})
+    composition_basis: CompositionBasis | None = field(default=None)
 
 
 class MaterialStream(Stream[MaterialStreamInput]):
@@ -661,8 +691,8 @@ class MaterialStream(Stream[MaterialStreamInput]):
         """Apply MaterialStream inputs from a :class:`MaterialStreamInput`.
 
         Supported fields: ``flash_type``, ``temperature``, ``pressure``,
-        ``vapor_fraction``, ``total_flow``, ``total_flow_basis``,
-        ``component_flow``, ``mass_frac``.
+        ``vapor_fraction``, ``total_flow_rate``, ``total_flow_basis``,
+        ``composition``, ``composition_basis``.
         """
         self._set_input(inputs)
 
