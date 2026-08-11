@@ -63,15 +63,25 @@ __all__ = [
 
 @dataclass
 class Units:
-    """Unit specifications for block/stream input parameters."""
+    """Unit specifications for block/stream input parameters.
 
-    temperature: str | None = None  # C, K, F, R
-    pressure: str | None = None  # bar, atm, Pa, kPa, psi
-    duty: str | None = None  # Watt, kW, Btu/hr, cal/sec
-    volume: str | None = None  # cum, L, cuft, gal
-    length: str | None = None  # meter, ft, cm, mm, in
-    heat_transfer_coefficient: str | None = None  # kcal/hr-sqm-K, Btu/hr-ft2-R
-    flow: str | None = None  # kg/hr, kmol/hr (basis-dependent)
+    Attributes:
+        temperature: C, K, F, R
+        pressure: bar, atm, Pa, kPa, psi
+        duty: Watt, kW, Btu/hr, cal/sec
+        volume: cum, L, cuft, gal
+        length: meter, ft, cm, mm, in
+        heat_transfer_coefficient: kcal/hr-sqm-K, Btu/hr-ft2-R
+        flow: kg/hr, kmol/hr (basis-dependent)
+    """
+
+    temperature: str | None = None
+    pressure: str | None = None
+    duty: str | None = None
+    volume: str | None = None
+    length: str | None = None
+    heat_transfer_coefficient: str | None = None
+    flow: str | None = None
 
 
 @dataclass
