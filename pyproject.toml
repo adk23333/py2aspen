@@ -21,6 +21,7 @@ build-backend = "uv_build"
 [dependency-groups]
 dev = [
     "pytest>=8.0",
+    "python-dotenv>=1.0",
 ]
 
 [tool.pytest.ini_options]
