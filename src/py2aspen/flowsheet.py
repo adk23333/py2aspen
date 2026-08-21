@@ -146,13 +146,13 @@ class Action:
             elif op_name == "place":
                 item = args[0]
                 if isinstance(item, Block):
-                    node = bn.Elements.Add(f"{item.name}!{item.type()}")
+                    node = bn.Elements.Add(f"{item.name}!{item.get_type()}")
                     item._node = node  # bind the block node for property setters
-                    logger.info("Placed block {} (type {})", item.name, item.type())
+                    logger.info("Placed block {} (type {})", item.name, item.get_type())
                 else:
-                    node = sn.Elements.Add(f"{item.name}!{item.type()}")
+                    node = sn.Elements.Add(f"{item.name}!{item.get_type()}")
                     item._node = node  # bind the stream node for property setters
-                    logger.info("Placed stream {} (type {})", item.name, item.type())
+                    logger.info("Placed stream {} (type {})", item.name, item.get_type())
             elif op_name == "delete":
                 item = args[0]
                 if isinstance(item, Block):

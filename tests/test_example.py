@@ -107,3 +107,17 @@ def test_flash2_example(aspen: UnitAspen) -> None:
     logger.info("Running the simulation")
     aspen.engine_run()
     logger.success("Simulation finished")
+
+    logger.info("Reading Flash2 B1 results in current display units")
+    res = b1.get_results()
+    assert res.temperature is not None
+    assert res.pressure is not None
+    assert res.units is not None and res.units.pressure is not None
+    logger.info("B1 temperature = {} {}", res.temperature, res.units.temperature)
+
+    logger.info("Reading Flash2 B1 pressure converted to atm")
+    res_atm = b1.get_results(units=Units(pressure="atm"))
+    assert res_atm.units is not None and res_atm.units.pressure == "atm"
+    assert res_atm.pressure is not None
+    # quantities not targeted by ``units`` stay in their current display units
+    assert res_atm.temperature == pytest.approx(res.temperature)

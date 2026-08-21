@@ -5,9 +5,10 @@ StreamConnect / StreamDisconnect in CodeLibrary.py.
 
 ``Block`` and ``Stream`` are abstract base classes; use their concrete
 subclasses (e.g. :class:`RCSTR`, :class:`Radfrac`, :class:`MaterialStream`,
-:class:`HeatStream`), which implement :meth:`Block.type` / :meth:`Stream.type`.
-The ``name`` argument is optional --- when omitted it defaults to the
-uppercased name of the variable the object is assigned to.
+:class:`HeatStream`), which implement :meth:`Block.get_type` /
+:meth:`Stream.get_type`.  The ``name`` argument is optional --- when
+omitted it defaults to the uppercased name of the variable the object is
+assigned to.
 
 Placement and connection on the flowsheet are handled by the operations in
 :mod:`py2aspen.flowsheet` (e.g. :func:`py2aspen.flowsheet.place`,
@@ -28,6 +29,7 @@ from py2aspen.aspen_type import CompositionBasis, FlashType, FlowBasis, HAPAttri
 from py2aspen.log import logger
 
 BlockInputT = TypeVar("BlockInputT", bound="BlockInput")
+BlockResultsT = TypeVar("BlockResultsT", bound="BlockResults")
 StreamInputT = TypeVar("StreamInputT", bound="StreamInput")
 
 
@@ -36,26 +38,36 @@ __all__ = [
     "RCSTR",
     "Block",
     "BlockInput",
+    "BlockResults",
     "DSTWUInput",
+    "DSTWUResults",
     "Flash2",
     "Flash2Input",
+    "Flash2Results",
     "HeatStream",
     "Heater",
     "HeaterInput",
+    "HeaterResults",
     "MaterialStream",
     "MaterialStreamInput",
     "Mixer",
     "MixerInput",
+    "MixerResults",
     "PowerStream",
     "RCSTRInput",
+    "RCSTRResults",
     "RPlug",
     "RPlugInput",
+    "RPlugResults",
     "RYield",
     "RYieldInput",
+    "RYieldResults",
     "Radfrac",
     "RadfracInput",
+    "RadfracResults",
     "Splitter",
     "SplitterInput",
+    "SplitterResults",
     "Stream",
     "StreamInput",
     "Units",
@@ -96,6 +108,19 @@ class BlockInput:
     supports.  Each field carries its Aspen node name as the ``"alias"``
     metadata; a ``"spec_opt"`` metadata means ``SPEC_OPT`` must be written to
     that value before the parameter itself.
+    """
+
+    units: Units | None = field(default=None)
+
+
+@dataclass
+class BlockResults:
+    """Base class for block result (Output) dataclasses.
+
+    Each subclass (e.g. :class:`Flash2Results`) declares the output values its
+    block exposes.  Each field carries its Aspen node name as the ``"alias"``
+    metadata; a ``"unit_attr"`` metadata names the physical quantity so a
+    :class:`Units` can target it for conversion.
     """
 
     units: Units | None = field(default=None)
@@ -274,12 +299,27 @@ def _resolve_name(name: str | None) -> str:
     raise ValueError("cannot infer name: object not assigned to a variable")
 
 
-class Block(ABC, Generic[BlockInputT]):
+def _unit_col(node: IHNode, row: int, target: str) -> int | None:
+    """Return the 1-based unit-table column for *target* within *row*, else None."""
+    table = cast(Any, node.Application).Tree.Elements("Unit Table")
+    row_node = table.Elements(row - 1)
+    col = 1
+    while True:
+        try:
+            label = row_node.Elements.Label(0, col - 1)
+        except COMError:
+            return None
+        if str(label) == target:
+            return col
+        col += 1
+
+
+class Block(ABC, Generic[BlockInputT, BlockResultsT]):
     """Base class for unit-operation blocks on the Aspen Plus flowsheet.
 
-    Subclasses must implement :meth:`type` and :meth:`set_input`.  The
-    ``name`` is optional and defaults to the uppercased variable the object
-    is assigned to.
+    Subclasses must implement :meth:`get_type`, :meth:`set_input` and
+    :meth:`get_results`.  The ``name`` is optional and defaults to the
+    uppercased variable the object is assigned to.
     """
 
     def __init__(self, name: str | None = None) -> None:
@@ -287,12 +327,21 @@ class Block(ABC, Generic[BlockInputT]):
         self._node: IHNode | None = None  # injected by flowsheet.place at exec time
 
     @abstractmethod
-    def type(self) -> str:
+    def get_type(self) -> str:
         """Return the Aspen Plus equipment type string."""
 
     @abstractmethod
     def set_input(self, inputs: BlockInputT) -> None:
         """Apply *inputs* to this block; subclasses document supported fields."""
+
+    @abstractmethod
+    def get_results(self, units: Units | None = None) -> BlockResultsT:
+        """Read this block's Output summary values into a :class:`BlockResults`.
+
+        Values are returned in Aspen's current display units; pass a
+        :class:`Units` (e.g. ``Units(pressure="atm")``) to convert the
+        corresponding quantities to the given units.
+        """
 
     def get_input(self) -> BlockInputT:
         """Read this block's current Input parameters into a :class:`BlockInput`."""
@@ -361,11 +410,73 @@ class Block(ABC, Generic[BlockInputT]):
                     write_unit(meta["alias"], unit_val)
             write(meta["alias"], value)
 
+    def _get_results(self, results_cls: type[BlockResultsT], units: Units | None = None) -> BlockResultsT:
+        """Read this block's Output summary values into *results_cls*.
 
-class RCSTR(Block[RCSTRInput]):
+        Each field's ``"alias"`` metadata names an ``Output`` node.  A field
+        with a ``"unit_attr"`` metadata and a matching target unit in *units*
+        is read via ``ValueForUnit`` (converted to that unit); other fields
+        are read in the current display unit and their ``UnitString`` is
+        recorded.
+        """
+        node = self._node
+        if node is None:
+            raise RuntimeError("block node not injected; call flowsheet.place first")
+        values: dict[str, Any] = {}
+        unit_kwargs: dict[str, str] = {}
+        for f in fields(results_cls):
+            if "alias" not in f.metadata:
+                continue  # skip non-parameter fields (e.g. units)
+            meta = f.metadata
+            out_node = node.Elements("Output").Elements(meta["alias"])
+            if out_node is None:
+                values[f.name] = None
+                continue
+            try:
+                if "unit_attr" in meta:
+                    attr = meta["unit_attr"]
+                    target = getattr(units, attr) if units is not None else None
+                    if target is not None:
+                        row = out_node.AttributeValue(HAPAttributeType.HAP_UNITROW)
+                        col = _unit_col(out_node, row, target)
+                        values[f.name] = out_node.ValueForUnit(row, col) if col is not None else None
+                        unit_kwargs[attr] = target
+                    else:
+                        values[f.name] = out_node.AttributeValue(HAPAttributeType.HAP_VALUE)
+                        try:
+                            unit_kwargs.setdefault(attr, str(out_node.UnitString))
+                        except COMError:
+                            pass
+                else:
+                    values[f.name] = out_node.AttributeValue(HAPAttributeType.HAP_VALUE)
+            except COMError:
+                values[f.name] = None
+        values["units"] = Units(**unit_kwargs) if unit_kwargs else None
+        return results_cls(**values)
+
+
+@dataclass
+class RCSTRResults(BlockResults):
+    """Outputs for :class:`RCSTR`."""
+
+    temperature: float | None = field(default=None, metadata={"alias": "B_TEMP", "unit_attr": "temperature"})
+    pressure: float | None = field(default=None, metadata={"alias": "B_PRES", "unit_attr": "pressure"})
+    vapor_fraction: float | None = field(default=None, metadata={"alias": "B_VFRAC"})
+    heat_duty: float | None = field(default=None, metadata={"alias": "QCALC", "unit_attr": "duty"})
+    net_duty: float | None = field(default=None, metadata={"alias": "QNET", "unit_attr": "duty"})
+    volume: float | None = field(default=None, metadata={"alias": "TOT_VOL", "unit_attr": "volume"})
+    vapor_volume: float | None = field(default=None, metadata={"alias": "VAP_VOL", "unit_attr": "volume"})
+    liquid_volume: float | None = field(default=None, metadata={"alias": "LIQ_VOL", "unit_attr": "volume"})
+    residence_time: float | None = field(default=None, metadata={"alias": "TOT_RES_TIME"})
+    convergence_status: str | None = field(default=None, metadata={"alias": "BLKSTAT"})
+    convergence_message: str | None = field(default=None, metadata={"alias": "BLKMSG"})
+    property_status: str | None = field(default=None, metadata={"alias": "PROPSTAT"})
+
+
+class RCSTR(Block[RCSTRInput, RCSTRResults]):
     """Continuous stirred-tank reactor."""
 
-    def type(self) -> str:
+    def get_type(self) -> str:
         return "RCSTR"
 
     def f_in(self) -> PortType:
@@ -378,11 +489,30 @@ class RCSTR(Block[RCSTRInput]):
         """Apply RCSTR inputs from a :class:`RCSTRInput`."""
         self._set_input(inputs)
 
+    def get_results(self, units: Units | None = None) -> RCSTRResults:
+        """Read RCSTR Output summary values into a :class:`RCSTRResults`."""
+        return self._get_results(RCSTRResults, units)
 
-class RPlug(Block[RPlugInput]):
+
+@dataclass
+class RPlugResults(BlockResults):
+    """Outputs for :class:`RPlug`."""
+
+    heat_duty: float | None = field(default=None, metadata={"alias": "QCALC", "unit_attr": "duty"})
+    min_temperature: float | None = field(default=None, metadata={"alias": "TMIN", "unit_attr": "temperature"})
+    max_temperature: float | None = field(default=None, metadata={"alias": "TMAX", "unit_attr": "temperature"})
+    residence_time: float | None = field(default=None, metadata={"alias": "RES_TIME"})
+    coolant_inlet_temperature: float | None = field(default=None, metadata={"alias": "COOLANT_TIN", "unit_attr": "temperature"})
+    coolant_inlet_vapor_fraction: float | None = field(default=None, metadata={"alias": "COOLANT_VIN"})
+    convergence_status: str | None = field(default=None, metadata={"alias": "BLKSTAT"})
+    convergence_message: str | None = field(default=None, metadata={"alias": "BLKMSG"})
+    property_status: str | None = field(default=None, metadata={"alias": "PROPSTAT"})
+
+
+class RPlug(Block[RPlugInput, RPlugResults]):
     """Plug-flow reactor."""
 
-    def type(self) -> str:
+    def get_type(self) -> str:
         return "RPlug"
 
     def f_in(self) -> PortType:
@@ -395,11 +525,35 @@ class RPlug(Block[RPlugInput]):
         """Apply RPlug inputs from a :class:`RPlugInput`."""
         self._set_input(inputs)
 
+    def get_results(self, units: Units | None = None) -> RPlugResults:
+        """Read RPlug Output summary values into a :class:`RPlugResults`."""
+        return self._get_results(RPlugResults, units)
 
-class DSTWU(Block[DSTWUInput]):
+
+@dataclass
+class DSTWUResults(BlockResults):
+    """Outputs for :class:`DSTWU`."""
+
+    min_reflux_ratio: float | None = field(default=None, metadata={"alias": "MIN_REFLUX"})
+    actual_reflux_ratio: float | None = field(default=None, metadata={"alias": "ACT_REFLUX"})
+    min_stages: float | None = field(default=None, metadata={"alias": "MIN_STAGES"})
+    actual_stages: float | None = field(default=None, metadata={"alias": "ACT_STAGES"})
+    feed_stage: float | None = field(default=None, metadata={"alias": "FEED_LOCATN"})
+    reboiler_duty: float | None = field(default=None, metadata={"alias": "REB_DUTY", "unit_attr": "duty"})
+    condenser_duty: float | None = field(default=None, metadata={"alias": "COND_DUTY", "unit_attr": "duty"})
+    distillate_temperature: float | None = field(default=None, metadata={"alias": "DISTIL_TEMP", "unit_attr": "temperature"})
+    bottom_temperature: float | None = field(default=None, metadata={"alias": "BOTTOM_TEMP", "unit_attr": "temperature"})
+    distillate_feed_fraction: float | None = field(default=None, metadata={"alias": "DIST_VS_FEED"})
+    hetp: float | None = field(default=None, metadata={"alias": "HETP", "unit_attr": "length"})
+    convergence_status: str | None = field(default=None, metadata={"alias": "BLKSTAT"})
+    convergence_message: str | None = field(default=None, metadata={"alias": "BLKMSG"})
+    property_status: str | None = field(default=None, metadata={"alias": "PROPSTAT"})
+
+
+class DSTWU(Block[DSTWUInput, DSTWUResults]):
     """Shortcut distillation column."""
 
-    def type(self) -> str:
+    def get_type(self) -> str:
         return "DSTWU"
 
     def f_in(self) -> PortType:
@@ -415,11 +569,32 @@ class DSTWU(Block[DSTWUInput]):
         """Apply DSTWU inputs from a :class:`DSTWUInput`."""
         self._set_input(inputs)
 
+    def get_results(self, units: Units | None = None) -> DSTWUResults:
+        """Read DSTWU Output summary values into a :class:`DSTWUResults`."""
+        return self._get_results(DSTWUResults, units)
 
-class Flash2(Block[Flash2Input]):
+
+@dataclass
+class Flash2Results(BlockResults):
+    """Outputs for :class:`Flash2`."""
+
+    temperature: float | None = field(default=None, metadata={"alias": "B_TEMP", "unit_attr": "temperature"})
+    pressure: float | None = field(default=None, metadata={"alias": "B_PRES", "unit_attr": "pressure"})
+    vapor_fraction: float | None = field(default=None, metadata={"alias": "B_VFRAC"})
+    vapor_fraction_mass: float | None = field(default=None, metadata={"alias": "MVFRAC"})
+    heat_duty: float | None = field(default=None, metadata={"alias": "QCALC", "unit_attr": "duty"})
+    net_duty: float | None = field(default=None, metadata={"alias": "QNET", "unit_attr": "duty"})
+    liquid_ratio: float | None = field(default=None, metadata={"alias": "LIQ_RATIO"})
+    pressure_drop: float | None = field(default=None, metadata={"alias": "PDROP", "unit_attr": "pressure"})
+    convergence_status: str | None = field(default=None, metadata={"alias": "BLKSTAT"})
+    convergence_message: str | None = field(default=None, metadata={"alias": "BLKMSG"})
+    property_status: str | None = field(default=None, metadata={"alias": "PROPSTAT"})
+
+
+class Flash2(Block[Flash2Input, Flash2Results]):
     """Two-outlet flash separator."""
 
-    def type(self) -> str:
+    def get_type(self) -> str:
         return "Flash2"
 
     def f_in(self) -> PortType:
@@ -435,11 +610,29 @@ class Flash2(Block[Flash2Input]):
         """Apply Flash2 inputs from a :class:`Flash2Input`."""
         self._set_input(inputs)
 
+    def get_results(self, units: Units | None = None) -> Flash2Results:
+        """Read Flash2 Output summary values into a :class:`Flash2Results`."""
+        return self._get_results(Flash2Results, units)
 
-class Mixer(Block[MixerInput]):
+
+@dataclass
+class MixerResults(BlockResults):
+    """Outputs for :class:`Mixer`."""
+
+    temperature: float | None = field(default=None, metadata={"alias": "B_TEMP", "unit_attr": "temperature"})
+    pressure: float | None = field(default=None, metadata={"alias": "B_PRES", "unit_attr": "pressure"})
+    vapor_fraction: float | None = field(default=None, metadata={"alias": "B_VFRAC"})
+    liquid_ratio: float | None = field(default=None, metadata={"alias": "LIQ_RATIO"})
+    pressure_drop: float | None = field(default=None, metadata={"alias": "PDROP", "unit_attr": "pressure"})
+    convergence_status: str | None = field(default=None, metadata={"alias": "BLKSTAT"})
+    convergence_message: str | None = field(default=None, metadata={"alias": "BLKMSG"})
+    property_status: str | None = field(default=None, metadata={"alias": "PROPSTAT"})
+
+
+class Mixer(Block[MixerInput, MixerResults]):
     """Stream mixer."""
 
-    def type(self) -> str:
+    def get_type(self) -> str:
         return "Mixer"
 
     def f_in(self) -> PortType:
@@ -452,11 +645,30 @@ class Mixer(Block[MixerInput]):
         """Apply Mixer inputs from a :class:`MixerInput`."""
         self._set_input(inputs)
 
+    def get_results(self, units: Units | None = None) -> MixerResults:
+        """Read Mixer Output summary values into a :class:`MixerResults`."""
+        return self._get_results(MixerResults, units)
 
-class Heater(Block[HeaterInput]):
+
+@dataclass
+class HeaterResults(BlockResults):
+    """Outputs for :class:`Heater` (flash-family summary)."""
+
+    temperature: float | None = field(default=None, metadata={"alias": "B_TEMP", "unit_attr": "temperature"})
+    pressure: float | None = field(default=None, metadata={"alias": "B_PRES", "unit_attr": "pressure"})
+    vapor_fraction: float | None = field(default=None, metadata={"alias": "B_VFRAC"})
+    heat_duty: float | None = field(default=None, metadata={"alias": "QCALC", "unit_attr": "duty"})
+    net_duty: float | None = field(default=None, metadata={"alias": "QNET", "unit_attr": "duty"})
+    pressure_drop: float | None = field(default=None, metadata={"alias": "PDROP", "unit_attr": "pressure"})
+    convergence_status: str | None = field(default=None, metadata={"alias": "BLKSTAT"})
+    convergence_message: str | None = field(default=None, metadata={"alias": "BLKMSG"})
+    property_status: str | None = field(default=None, metadata={"alias": "PROPSTAT"})
+
+
+class Heater(Block[HeaterInput, HeaterResults]):
     """Heater/cooler."""
 
-    def type(self) -> str:
+    def get_type(self) -> str:
         return "Heater"
 
     def f_in(self) -> PortType:
@@ -469,11 +681,36 @@ class Heater(Block[HeaterInput]):
         """Apply Heater inputs from a :class:`HeaterInput`."""
         self._set_input(inputs)
 
+    def get_results(self, units: Units | None = None) -> HeaterResults:
+        """Read Heater Output summary values into a :class:`HeaterResults`."""
+        return self._get_results(HeaterResults, units)
 
-class Radfrac(Block[RadfracInput]):
+
+@dataclass
+class RadfracResults(BlockResults):
+    """Outputs for :class:`Radfrac`."""
+
+    condenser_temperature: float | None = field(default=None, metadata={"alias": "TOP_TEMP", "unit_attr": "temperature"})
+    condenser_subcooled_temperature: float | None = field(default=None, metadata={"alias": "SCTEMP", "unit_attr": "temperature"})
+    condenser_duty: float | None = field(default=None, metadata={"alias": "COND_DUTY", "unit_attr": "duty"})
+    distillate_rate: float | None = field(default=None, metadata={"alias": "MOLE_D", "unit_attr": "total_flow_rate"})
+    reflux_rate: float | None = field(default=None, metadata={"alias": "MOLE_L1", "unit_attr": "total_flow_rate"})
+    reboiler_temperature: float | None = field(default=None, metadata={"alias": "BOTTOM_TEMP", "unit_attr": "temperature"})
+    reboiler_duty: float | None = field(default=None, metadata={"alias": "REB_DUTY", "unit_attr": "duty"})
+    bottoms_rate: float | None = field(default=None, metadata={"alias": "MOLE_B", "unit_attr": "total_flow_rate"})
+    boilup_rate: float | None = field(default=None, metadata={"alias": "MOLE_VN", "unit_attr": "total_flow_rate"})
+    boilup_ratio: float | None = field(default=None, metadata={"alias": "CMF_MAMX"})
+    distillate_feed_ratio: float | None = field(default=None, metadata={"alias": "MOLE_DFR"})
+    bottoms_feed_ratio: float | None = field(default=None, metadata={"alias": "MOLE_BFR"})
+    convergence_status: str | None = field(default=None, metadata={"alias": "BLKSTAT"})
+    convergence_message: str | None = field(default=None, metadata={"alias": "BLKMSG"})
+    property_status: str | None = field(default=None, metadata={"alias": "PROPSTAT"})
+
+
+class Radfrac(Block[RadfracInput, RadfracResults]):
     """Rigorous multi-stage distillation column."""
 
-    def type(self) -> str:
+    def get_type(self) -> str:
         return "Radfrac"
 
     def f_in(self) -> PortType:
@@ -492,11 +729,24 @@ class Radfrac(Block[RadfracInput]):
         """Apply Radfrac inputs from a :class:`RadfracInput`."""
         self._set_input(inputs)
 
+    def get_results(self, units: Units | None = None) -> RadfracResults:
+        """Read Radfrac Output summary values into a :class:`RadfracResults`."""
+        return self._get_results(RadfracResults, units)
 
-class Splitter(Block[SplitterInput]):
+
+@dataclass
+class SplitterResults(BlockResults):
+    """Outputs for :class:`Splitter` (per-stream split data pending)."""
+
+    convergence_status: str | None = field(default=None, metadata={"alias": "BLKSTAT"})
+    convergence_message: str | None = field(default=None, metadata={"alias": "BLKMSG"})
+    property_status: str | None = field(default=None, metadata={"alias": "PROPSTAT"})
+
+
+class Splitter(Block[SplitterInput, SplitterResults]):
     """Stream splitter."""
 
-    def type(self) -> str:
+    def get_type(self) -> str:
         return "Splitter"
 
     def f_in(self) -> PortType:
@@ -509,11 +759,30 @@ class Splitter(Block[SplitterInput]):
         """Apply Splitter inputs from a :class:`SplitterInput`."""
         self._set_input(inputs)
 
+    def get_results(self, units: Units | None = None) -> SplitterResults:
+        """Read Splitter Output status values into a :class:`SplitterResults`."""
+        return self._get_results(SplitterResults, units)
 
-class RYield(Block[RYieldInput]):
+
+@dataclass
+class RYieldResults(BlockResults):
+    """Outputs for :class:`RYield`."""
+
+    temperature: float | None = field(default=None, metadata={"alias": "B_TEMP", "unit_attr": "temperature"})
+    pressure: float | None = field(default=None, metadata={"alias": "B_PRES", "unit_attr": "pressure"})
+    heat_duty: float | None = field(default=None, metadata={"alias": "QCALC", "unit_attr": "duty"})
+    net_duty: float | None = field(default=None, metadata={"alias": "QNET", "unit_attr": "duty"})
+    vapor_fraction: float | None = field(default=None, metadata={"alias": "B_VFRAC"})
+    liquid_ratio: float | None = field(default=None, metadata={"alias": "LIQ_RATIO"})
+    convergence_status: str | None = field(default=None, metadata={"alias": "BLKSTAT"})
+    convergence_message: str | None = field(default=None, metadata={"alias": "BLKMSG"})
+    property_status: str | None = field(default=None, metadata={"alias": "PROPSTAT"})
+
+
+class RYield(Block[RYieldInput, RYieldResults]):
     """Yield reactor."""
 
-    def type(self) -> str:
+    def get_type(self) -> str:
         return "RYield"
 
     def f_in(self) -> PortType:
@@ -526,11 +795,15 @@ class RYield(Block[RYieldInput]):
         """Apply RYield inputs from a :class:`RYieldInput`."""
         self._set_input(inputs)
 
+    def get_results(self, units: Units | None = None) -> RYieldResults:
+        """Read RYield Output summary values into a :class:`RYieldResults`."""
+        return self._get_results(RYieldResults, units)
+
 
 class Stream(ABC, Generic[StreamInputT]):
     """Base class for material, heat, or work streams.
 
-    Subclasses must implement :meth:`type` and :meth:`set_input`.  The
+    Subclasses must implement :meth:`get_type` and :meth:`set_input`.  The
     ``name`` is optional and defaults to the uppercased variable the object
     is assigned to.
     """
@@ -540,7 +813,7 @@ class Stream(ABC, Generic[StreamInputT]):
         self._node: IHNode | None = None  # injected by flowsheet.place/bind at exec time
 
     @abstractmethod
-    def type(self) -> str:
+    def get_type(self) -> str:
         """Return the Aspen Plus stream type string."""
 
     @abstractmethod
@@ -684,7 +957,7 @@ class MaterialStreamInput(StreamInput):
 class MaterialStream(Stream[MaterialStreamInput]):
     """Material stream."""
 
-    def type(self) -> str:
+    def get_type(self) -> str:
         return "MATERIAL"
 
     def set_input(self, inputs: MaterialStreamInput) -> None:
@@ -700,7 +973,7 @@ class MaterialStream(Stream[MaterialStreamInput]):
 class HeatStream(Stream[StreamInput]):
     """Heat stream."""
 
-    def type(self) -> str:
+    def get_type(self) -> str:
         return "HEAT"
 
     def set_input(self, inputs: StreamInput) -> None:
@@ -716,7 +989,7 @@ class HeatStream(Stream[StreamInput]):
 class WorkStream(Stream[StreamInput]):
     """Work stream (empty Aspen type string)."""
 
-    def type(self) -> str:
+    def get_type(self) -> str:
         return "WORK"
 
     def set_input(self, inputs: StreamInput) -> None:
@@ -732,7 +1005,7 @@ class WorkStream(Stream[StreamInput]):
 class PowerStream(Stream[StreamInput]):
     """power stream."""
 
-    def type(self) -> str:
+    def get_type(self) -> str:
         return "POWER"
 
     def set_input(self, inputs: StreamInput) -> None:
