@@ -26,7 +26,7 @@ from comtypes import COMError
 from py2aspen.aspen_type import FlashType, HAPAttributeType, IHNode, PortType
 from py2aspen.log import logger
 
-from ._common import Units, _resolve_name
+from ._common import Units, _resolve_name, _unit_col
 
 BlockInputT = TypeVar("BlockInputT", bound="BlockInput")
 BlockResultsT = TypeVar("BlockResultsT", bound="BlockResults")
@@ -91,21 +91,6 @@ class BlockResults:
     """
 
     units: Units | None = field(default=None)
-
-
-def _unit_col(node: IHNode, row: int, target: str) -> int | None:
-    """Return the 1-based unit-table column for *target* within *row*, else None."""
-    table = cast(Any, node.Application).Tree.Elements("Unit Table")
-    row_node = table.Elements(row - 1)
-    col = 1
-    while True:
-        try:
-            label = row_node.Elements.Label(0, col - 1)
-        except COMError:
-            return None
-        if str(label) == target:
-            return col
-        col += 1
 
 
 class Block(ABC, Generic[BlockInputT, BlockResultsT]):

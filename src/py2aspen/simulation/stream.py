@@ -26,19 +26,25 @@ from comtypes import COMError
 from py2aspen.aspen_type import CompositionBasis, FlashType, FlowBasis, HAPAttributeType, IHNode
 from py2aspen.log import logger
 
-from ._common import Units, _resolve_name
+from ._common import Units, _resolve_name, _unit_col
 
 StreamInputT = TypeVar("StreamInputT", bound="StreamInput")
+StreamResultsT = TypeVar("StreamResultsT", bound="StreamResults")
 
 
 __all__ = [
     "HeatStream",
+    "HeatStreamResults",
     "MaterialStream",
     "MaterialStreamInput",
+    "MaterialStreamResults",
     "PowerStream",
+    "PowerStreamResults",
     "Stream",
     "StreamInput",
+    "StreamResults",
     "WorkStream",
+    "WorkStreamResults",
 ]
 
 
@@ -55,7 +61,22 @@ class StreamInput:
     units: Units | None = field(default=None)
 
 
-class Stream(ABC, Generic[StreamInputT]):
+@dataclass
+class StreamResults:
+    """Base class for stream result (Output) dataclasses.
+
+    Each subclass (e.g. :class:`MaterialStreamResults`) declares the output
+    values its stream exposes.  Each field carries its Aspen node name as the
+    ``"alias"`` metadata; a ``"main"`` metadata wraps it under ``STR_MAIN``
+    and a ``"sub"`` metadata names a child node (e.g. ``MIXED``).  A
+    ``"unit_attr"`` metadata names the physical quantity so a :class:`Units`
+    can target it for conversion.
+    """
+
+    units: Units | None = field(default=None)
+
+
+class Stream(ABC, Generic[StreamInputT, StreamResultsT]):
     """Base class for material, heat, or work streams.
 
     Subclasses must implement :meth:`get_type` and :meth:`set_input`.  The
@@ -74,6 +95,15 @@ class Stream(ABC, Generic[StreamInputT]):
     @abstractmethod
     def set_input(self, inputs: StreamInputT) -> None:
         """Apply *inputs* to this stream; subclasses document supported fields."""
+
+    @abstractmethod
+    def get_results(self, units: Units | None = None) -> StreamResultsT:
+        """Read this stream's Output summary values into a :class:`StreamResults`.
+
+        Values are returned in Aspen's current display units; pass a
+        :class:`Units` (e.g. ``Units(pressure="atm")``) to convert the
+        corresponding quantities to the given units.
+        """
 
     def get_input(self) -> StreamInputT:
         """Read this stream's current Input parameters into a :class:`StreamInput`."""
@@ -194,6 +224,76 @@ class Stream(ABC, Generic[StreamInputT]):
                     HAPAttributeType.HAP_VALUE, 0
                 ] = value
 
+    def _get_results(self, results_cls: type[StreamResultsT], units: Units | None = None) -> StreamResultsT:
+        """Read this stream's Output summary values into *results_cls*.
+
+        Each field's ``"alias"`` metadata names an ``Output`` node; a
+        ``"main"`` metadata wraps it under ``STR_MAIN``, a ``"sub"`` metadata
+        names a child node (e.g. ``MIXED``), and a ``"comps"`` metadata reads
+        per-component values into a dict.  A field with a ``"unit_attr"``
+        metadata and a matching target unit in *units* is read via
+        ``ValueForUnit`` (converted to that unit); other fields are read in
+        the current display unit and their ``UnitString`` is recorded.
+        """
+        node = self._node
+        if node is None:
+            raise RuntimeError("stream node not injected; call flowsheet.place/bind first")
+        output = node.Elements("Output")
+        values: dict[str, Any] = {}
+        unit_kwargs: dict[str, str] = {}
+        for f in fields(results_cls):
+            if "alias" not in f.metadata:
+                continue  # skip non-parameter fields (e.g. units)
+            meta = f.metadata
+            out_node = output
+            if out_node is not None:
+                out_node = out_node.Elements("STR_MAIN") if "main" in meta else out_node
+                out_node = out_node.Elements(meta["alias"])
+            if out_node is None:
+                values[f.name] = None
+                continue
+            try:
+                if "comps" in meta:
+                    comp_node = out_node.Elements(meta["sub"]) if "sub" in meta else out_node
+                    if comp_node is None:
+                        values[f.name] = None
+                        continue
+                    comp_values: dict[str, Any] = {}
+                    for elem in comp_node.Elements:
+                        elem_node = cast(IHNode, elem)
+                        comp_values[str(elem_node.Name())] = elem_node.AttributeValue(HAPAttributeType.HAP_VALUE)
+                    values[f.name] = comp_values
+                    if "unit_attr" in meta and meta["unit_attr"] not in unit_kwargs:
+                        try:
+                            unit_kwargs.setdefault(meta["unit_attr"], str(comp_node.UnitString))
+                        except COMError:
+                            pass
+                    continue
+                value_node = out_node.Elements(meta["sub"]) if "sub" in meta else out_node
+                if value_node is None:
+                    values[f.name] = None
+                    continue
+                if "unit_attr" in meta:
+                    attr = meta["unit_attr"]
+                    target = getattr(units, attr) if units is not None else None
+                    if target is not None:
+                        row = value_node.AttributeValue(HAPAttributeType.HAP_UNITROW)
+                        col = _unit_col(value_node, row, target)
+                        values[f.name] = value_node.ValueForUnit(row, col) if col is not None else None
+                        unit_kwargs[attr] = target
+                    else:
+                        values[f.name] = value_node.AttributeValue(HAPAttributeType.HAP_VALUE)
+                        try:
+                            unit_kwargs.setdefault(attr, str(value_node.UnitString))
+                        except COMError:
+                            pass
+                else:
+                    values[f.name] = value_node.AttributeValue(HAPAttributeType.HAP_VALUE)
+            except COMError:
+                values[f.name] = None
+        values["units"] = Units(**unit_kwargs) if unit_kwargs else None
+        return results_cls(**values)
+
 
 @dataclass
 class MaterialStreamInput(StreamInput):
@@ -209,7 +309,27 @@ class MaterialStreamInput(StreamInput):
     composition_basis: CompositionBasis | None = field(default=None)
 
 
-class MaterialStream(Stream[MaterialStreamInput]):
+@dataclass
+class MaterialStreamResults(StreamResults):
+    """Outputs for :class:`MaterialStream`."""
+
+    temperature: float | None = field(default=None, metadata={"alias": "TEMP", "sub": "MIXED", "main": True, "unit_attr": "temperature"})
+    pressure: float | None = field(default=None, metadata={"alias": "PRES", "sub": "MIXED", "main": True, "unit_attr": "pressure"})
+    vapor_fraction: float | None = field(default=None, metadata={"alias": "VFRAC", "main": True})
+    liquid_fraction: float | None = field(default=None, metadata={"alias": "LFRAC", "main": True})
+    solid_fraction: float | None = field(default=None, metadata={"alias": "SFRAC", "main": True})
+    total_mass_flow: float | None = field(default=None, metadata={"alias": "MASSFLMX", "sub": "MIXED", "main": True, "unit_attr": "total_flow_rate"})
+    total_mole_flow: float | None = field(default=None, metadata={"alias": "MOLEFLMX", "sub": "MIXED", "main": True, "unit_attr": "total_flow_rate"})
+    volume_flow: float | None = field(default=None, metadata={"alias": "VOLFLMX", "sub": "MIXED", "main": True, "unit_attr": "volume_flow"})
+    mass_flow: dict[str, float] | None = field(default=None, metadata={"alias": "MASSFLOW", "sub": "MIXED", "main": True, "comps": True, "unit_attr": "composition_flow"})
+    mole_flow: dict[str, float] | None = field(default=None, metadata={"alias": "MOLEFLOW", "sub": "MIXED", "main": True, "comps": True, "unit_attr": "composition_flow"})
+    mass_fraction: dict[str, float] | None = field(default=None, metadata={"alias": "MASSFRAC", "sub": "MIXED", "comps": True})
+    mole_fraction: dict[str, float] | None = field(default=None, metadata={"alias": "MOLEFRAC", "sub": "MIXED", "comps": True})
+    source: str | None = field(default=None, metadata={"alias": "SOURCE", "main": True})
+    destination: str | None = field(default=None, metadata={"alias": "DESTINATION", "main": True})
+
+
+class MaterialStream(Stream[MaterialStreamInput, MaterialStreamResults]):
     """Material stream."""
 
     def get_type(self) -> str:
@@ -224,8 +344,19 @@ class MaterialStream(Stream[MaterialStreamInput]):
         """
         self._set_input(inputs)
 
+    def get_results(self, units: Units | None = None) -> MaterialStreamResults:
+        """Read MaterialStream Output summary values into a :class:`MaterialStreamResults`."""
+        return self._get_results(MaterialStreamResults, units)
 
-class HeatStream(Stream[StreamInput]):
+
+@dataclass
+class HeatStreamResults(StreamResults):
+    """Outputs for :class:`HeatStream`."""
+
+    heat_duty: float | None = field(default=None, metadata={"alias": "HEAT_DUTY", "main": True, "unit_attr": "duty"})
+
+
+class HeatStream(Stream[StreamInput, HeatStreamResults]):
     """Heat stream."""
 
     def get_type(self) -> str:
@@ -239,8 +370,19 @@ class HeatStream(Stream[StreamInput]):
         """HeatStream has no configurable inputs."""
         raise NotImplementedError("HeatStream has no inputs to get")
 
+    def get_results(self, units: Units | None = None) -> HeatStreamResults:
+        """Read HeatStream Output summary values into a :class:`HeatStreamResults`."""
+        return self._get_results(HeatStreamResults, units)
 
-class WorkStream(Stream[StreamInput]):
+
+@dataclass
+class WorkStreamResults(StreamResults):
+    """Outputs for :class:`WorkStream`."""
+
+    work_duty: float | None = field(default=None, metadata={"alias": "WORK_DUTY", "main": True, "unit_attr": "duty"})
+
+
+class WorkStream(Stream[StreamInput, WorkStreamResults]):
     """Work stream (empty Aspen type string)."""
 
     def get_type(self) -> str:
@@ -254,8 +396,19 @@ class WorkStream(Stream[StreamInput]):
         """WorkStream has no configurable inputs."""
         raise NotImplementedError("WorkStream has no inputs to get")
 
+    def get_results(self, units: Units | None = None) -> WorkStreamResults:
+        """Read WorkStream Output summary values into a :class:`WorkStreamResults`."""
+        return self._get_results(WorkStreamResults, units)
 
-class PowerStream(Stream[StreamInput]):
+
+@dataclass
+class PowerStreamResults(StreamResults):
+    """Outputs for :class:`PowerStream`."""
+
+    power_duty: float | None = field(default=None, metadata={"alias": "POWER_DUTY", "main": True, "unit_attr": "duty"})
+
+
+class PowerStream(Stream[StreamInput, PowerStreamResults]):
     """power stream."""
 
     def get_type(self) -> str:
@@ -268,3 +421,7 @@ class PowerStream(Stream[StreamInput]):
     def get_input(self) -> StreamInput:
         """PowerStream has no configurable inputs."""
         raise NotImplementedError("PowerStream has no inputs to get")
+
+    def get_results(self, units: Units | None = None) -> PowerStreamResults:
+        """Read PowerStream Output summary values into a :class:`PowerStreamResults`."""
+        return self._get_results(PowerStreamResults, units)
