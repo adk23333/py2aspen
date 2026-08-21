@@ -13,3 +13,5 @@ uv.lock
 
 environment var
 .env.*
+# Added by code-review-graph
+.code-review-graph/
