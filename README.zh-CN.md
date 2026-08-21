@@ -114,4 +114,8 @@ QQ：562721026
 
 TG：暂无
 
+感谢以下同类项目提供的参考：
+
+[AspenPlus-Python-Interface](https://github.com/YouMayCallMeJesus/AspenPlus-Python-Interface) - Python interface which acts as an API to automate the design synthsis. It includes all variables for RADFRAC, DSTWU, Flash2, RYield, RPlug, RCSTR, Heater, Mixer, Splitter. It includes a optimization library implementation from scipy
+
 欢迎任何形式的贡献：提交 [Issue](https://github.com/adk23333/py2aspen/issues) 报告问题、提出建议，或发起 [Pull Request](https://github.com/adk23333/py2aspen/pulls) 改进代码。
